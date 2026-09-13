@@ -372,16 +372,22 @@ func sizeKey(w, h uint32) string {
 }
 
 // ActiveCaptureConfig returns the effective state; Interval is nil unless
-// the fake advertises timeperframe support.
+// the fake advertises timeperframe support (a real G_PARM always reports
+// the current interval when the capability exists, so the fake defaults to
+// 1/30 when none was configured).
 func (b *Backend) ActiveCaptureConfig(_ context.Context) (domain.CaptureConfig, error) {
 	cfg := b.opts.Active
 	cfg.Input = b.opts.ActiveInput
 
-	if b.opts.TimePerFrame && cfg.Interval != nil {
+	switch {
+	case !b.opts.TimePerFrame:
+		cfg.Interval = nil
+	case cfg.Interval != nil:
 		iv := *cfg.Interval
 		cfg.Interval = &iv
-	} else {
-		cfg.Interval = nil
+	default:
+		iv := domain.FrameInterval{Num: 1, Den: 30}
+		cfg.Interval = &iv
 	}
 
 	return cfg, nil
