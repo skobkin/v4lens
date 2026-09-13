@@ -13,6 +13,7 @@ import (
 	"git.skobk.in/skobkin/v4lens/internal/config"
 	"git.skobk.in/skobkin/v4lens/internal/device"
 	"git.skobk.in/skobkin/v4lens/internal/domain"
+	"git.skobk.in/skobkin/v4lens/internal/platform"
 	"git.skobk.in/skobkin/v4lens/internal/profile"
 )
 
@@ -53,7 +54,19 @@ func newUIFixture(t *testing.T) *uiFixture {
 		t.Fatal(err)
 	}
 
-	m := NewMainWindow(fa, a, discardLogger())
+	// Real XDG dirs inside the temp tree so tray/autostart state never
+	// touches the developer's home.
+	root := t.TempDir()
+
+	dirs := platform.ForTest(func(name string) string {
+		if name == "XDG_CONFIG_HOME" {
+			return filepath.Join(root, "config")
+		}
+
+		return ""
+	}, 1234)
+
+	m := NewMainWindow(fa, a, dirs, discardLogger())
 
 	sync := func(fn func()) { fn() }
 	m.Dispatch = sync

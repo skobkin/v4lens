@@ -136,8 +136,8 @@ func (d Dirs) LogFile() string {
 	return filepath.Join(d.AppStateDir(), "v4lens.log")
 }
 
-// AppRuntimeDir is the V4Lens-private runtime directory (lock/activation
-// sockets in later phases).
+// AppRuntimeDir is the V4Lens-private runtime directory (single-instance
+// lock and activation state): $XDG_RUNTIME_DIR/v4lens.
 func (d Dirs) AppRuntimeDir() string {
-	return RuntimeDir(d.Lookup, d.UID)
+	return filepath.Join(RuntimeDir(d.Lookup, d.UID), "v4lens")
 }

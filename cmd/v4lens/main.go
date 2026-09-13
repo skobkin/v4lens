@@ -7,6 +7,8 @@ package main
 
 import (
 	"context"
+	"errors"
+	"flag"
 	"os"
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
@@ -31,6 +33,9 @@ func main() {
 }
 
 func run() error {
+	background := flag.Bool("background", false, "start with the main window hidden (tray only)")
+	flag.Parse()
+
 	dirs := platform.NewDirs()
 
 	prefs, err := config.NewStore(dirs.AppConfigFile()).Load()
@@ -57,6 +62,33 @@ func run() error {
 		"version", version,
 		"config", dirs.AppConfigFile(),
 	)
+
+	// Single instance (flock): a second launch forwards activation to the
+	// running one and exits successfully.
+	lock, err := platform.AcquireInstanceLock(dirs)
+	if err != nil {
+		if errors.Is(err, platform.ErrInstanceAlreadyRunning) {
+			logger.Info("another instance is running, forwarding activation")
+
+			if err := platform.ForwardActivation(dirs); err != nil {
+				logger.Warn("activation forward failed", "err", err)
+
+				return err
+			}
+
+			return nil
+		}
+
+		logger.Error("instance lock failed", "err", err)
+
+		return err
+	}
+
+	defer func() {
+		if err := lock.Release(); err != nil {
+			logger.Warn("release instance lock", "err", err)
+		}
+	}()
 
 	// The preview manager closes over the app variable to break the
 	// construction cycle: the app is built with the manager as its
@@ -85,10 +117,25 @@ func run() error {
 		return err
 	}
 
+	// Second-instance activation flows through the bus: the HTTP handler
+	// goroutine never touches Fyne directly.
+	activationSrv, err := platform.StartActivationServer(dirs, logger, func() {
+		application.Bus().Publish(app.ActivationRequested{})
+	})
+	if err != nil {
+		logger.Warn("activation server unavailable", "err", err)
+	} else {
+		defer func() {
+			if err := activationSrv.Close(); err != nil {
+				logger.Warn("close activation server", "err", err)
+			}
+		}()
+	}
+
 	application.Start()
 	defer application.Stop()
 
-	ui.Run(application, previews, logger)
+	ui.Run(application, previews, dirs, *background, logger)
 
 	return nil
 }

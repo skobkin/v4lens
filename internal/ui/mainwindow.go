@@ -11,11 +11,13 @@ import (
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
 	"git.skobk.in/skobkin/v4lens/internal/domain"
+	"git.skobk.in/skobkin/v4lens/internal/platform"
 	"git.skobk.in/skobkin/v4lens/internal/preview"
 	"git.skobk.in/skobkin/v4lens/internal/profile"
 	"git.skobk.in/skobkin/v4lens/internal/ui/viewmodel"
@@ -56,6 +58,10 @@ type MainWindow struct {
 	preview    *preview.Manager
 	previewWin *PreviewWindow
 
+	tray       desktop.App
+	dirs       platform.Dirs
+	background bool // started with --background (main window hidden)
+
 	// UI state lives only on the dispatch/UI goroutine — no locks.
 	devices     []app.DeviceView
 	labels      []string
@@ -69,9 +75,10 @@ type MainWindow struct {
 	lastMsg     string
 }
 
-// NewMainWindow builds the window (not yet subscribed to events).
-func NewMainWindow(fa fyne.App, a *app.App, log *slog.Logger) *MainWindow {
-	m := &MainWindow{fa: fa, app: a, log: log, win: fa.NewWindow("V4Lens")}
+// NewMainWindow builds the window (not yet subscribed to events). dirs
+// feeds the tray's autostart integration.
+func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger) *MainWindow {
+	m := &MainWindow{fa: fa, app: a, dirs: dirs, log: log, win: fa.NewWindow("V4Lens")}
 
 	m.statusDot = &canvas.Circle{FillColor: color.NRGBA{R: 0x88, G: 0x88, B: 0x88, A: 0xff}}
 	m.statusDot.Resize(fyne.NewSize(12, 12))
@@ -152,7 +159,8 @@ func (m *MainWindow) Show() {
 	m.win.Show()
 }
 
-// Start subscribes to the app event bus and pumps events into the UI.
+// Start subscribes to the app event bus, pumps events into the UI and
+// installs the system tray menu.
 func (m *MainWindow) Start() {
 	ch, unsub := m.app.Bus().Subscribe()
 	m.unsub = unsub
@@ -163,6 +171,8 @@ func (m *MainWindow) Start() {
 			m.dispatch(func() { m.onEvent(ev) })
 		}
 	}()
+
+	m.setupTray()
 }
 
 func (m *MainWindow) dispatch(fn func()) {
@@ -209,10 +219,18 @@ func (m *MainWindow) SetPreviewManager(mgr *preview.Manager) {
 // The callback itself performs no device I/O — the window's start path
 // resolves the capture config on its own goroutine.
 func (m *MainWindow) onPreview() {
-	key := m.selected
+	m.previewDevice(m.selected)
+}
 
+// previewDevice opens (or focuses) the preview window for one device,
+// switching the main-window context when necessary.
+func (m *MainWindow) previewDevice(key string) {
 	if key == "" || m.preview == nil {
 		return
+	}
+
+	if key != m.selected {
+		m.selectDevice(key)
 	}
 
 	if m.previewWin != nil {
@@ -243,10 +261,13 @@ func (m *MainWindow) onEvent(ev app.Event) {
 		m.onApplyFinished(e)
 	case app.PrefsChanged:
 		m.updateFooter()
+		m.rebuildTray()
 	case app.ActivationRequested:
-		m.win.Show()
+		// Second-instance activation: the running (possibly background)
+		// instance reveals its main window.
+		m.showMainWindow()
 	case app.PreviewState:
-		// Reserved for tray state display (Phase 6).
+		// Reserved for tray state display (post-MVP).
 	}
 }
 
@@ -284,6 +305,7 @@ func (m *MainWindow) onDevicesChanged(ev app.DevicesChanged) {
 
 	m.deviceSel.Refresh()
 	m.updateStatusDot()
+	m.rebuildTray()
 }
 
 func deviceLabel(d app.DeviceView) string {
@@ -442,6 +464,12 @@ func profileNameOf(option string) string {
 }
 
 // showOverflow opens the overflow menu dialog.
+// showPreferences opens the preferences window (overflow menu and tray).
+func (m *MainWindow) showPreferences() {
+	m.prefsWin = NewPreferencesWindow(m.fa, m.app)
+	m.prefsWin.Show()
+}
+
 func (m *MainWindow) showOverflow() {
 	items := []*widget.Button{
 		widget.NewButton("Apply selected profile now", func() {
@@ -467,8 +495,7 @@ func (m *MainWindow) showOverflow() {
 		}),
 		widget.NewButton("Preferences…", func() {
 			m.dismissTopOverlay()
-			m.prefsWin = NewPreferencesWindow(m.fa, m.app)
-			m.prefsWin.Show()
+			m.showPreferences()
 		}),
 	}
 
@@ -539,6 +566,25 @@ func (m *MainWindow) onFormatSnapshot(ev app.FormatSnapshot) {
 }
 
 func (m *MainWindow) onApplyFinished(ev app.ApplyFinished) {
+	if m.background {
+		// Window hidden (--background): apply issues surface as desktop
+		// notifications (publication is cooldown-gated upstream); full
+		// successes stay silent. No dialogs while nobody watches.
+		if ev.Result.Status != profile.StatusFull {
+			m.fa.SendNotification(fyne.NewNotification(
+				"V4Lens — "+m.displayNameOf(ev.Key),
+				applySummary(ev.Result),
+			))
+		}
+
+		if ev.Key == m.selected {
+			m.recordApplyMessage(ev)
+			m.updateFooter()
+		}
+
+		return
+	}
+
 	if ev.Key != m.selected {
 		return
 	}
@@ -556,6 +602,19 @@ func (m *MainWindow) onApplyFinished(ev app.ApplyFinished) {
 
 	m.refreshProfiles()
 	m.updateFooter()
+}
+
+// recordApplyMessage updates the footer message from an apply result
+// without presenting dialogs.
+func (m *MainWindow) recordApplyMessage(ev app.ApplyFinished) {
+	switch ev.Result.Status {
+	case profile.StatusFull:
+		m.lastMsg = fmt.Sprintf("Profile %q applied.", ev.Result.Profile)
+	case profile.StatusPartial:
+		m.lastMsg = fmt.Sprintf("Profile %q applied with issues.", ev.Result.Profile)
+	default:
+		m.lastMsg = fmt.Sprintf("Profile %q apply failed.", ev.Result.Profile)
+	}
 }
 
 // ---- control writes ----
