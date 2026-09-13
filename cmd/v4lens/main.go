@@ -6,6 +6,7 @@
 package main
 
 import (
+	"context"
 	"os"
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
@@ -14,6 +15,7 @@ import (
 	"git.skobk.in/skobkin/v4lens/internal/domain"
 	"git.skobk.in/skobkin/v4lens/internal/logging"
 	"git.skobk.in/skobkin/v4lens/internal/platform"
+	"git.skobk.in/skobkin/v4lens/internal/preview"
 	"git.skobk.in/skobkin/v4lens/internal/profile"
 	"git.skobk.in/skobkin/v4lens/internal/ui"
 	"git.skobk.in/skobkin/v4lens/internal/v4l"
@@ -56,10 +58,20 @@ func run() error {
 		"config", dirs.AppConfigFile(),
 	)
 
-	application, err := app.New(app.Options{
-		Config:   config.NewStore(dirs.AppConfigFile()),
-		Profiles: profile.NewStore(dirs.ProfilesRoot(), logger),
-		Log:      logger,
+	// The preview manager closes over the app variable to break the
+	// construction cycle: the app is built with the manager as its
+	// StreamOwner, while the manager's opener resolves through the app.
+	var application *app.App
+
+	previews := preview.NewManager(func(ctx context.Context, key string, cfg device.StreamConfig) (device.Stream, error) {
+		return application.OpenStream(ctx, key, cfg)
+	}, logger)
+
+	application, err = app.New(app.Options{
+		Config:      config.NewStore(dirs.AppConfigFile()),
+		Profiles:    profile.NewStore(dirs.ProfilesRoot(), logger),
+		Log:         logger,
+		StreamOwner: previews,
 		OpenBackend: func(identity domain.DeviceIdentity) (device.Handle, error) {
 			ep := identity.CaptureEndpoint()
 
@@ -76,7 +88,7 @@ func run() error {
 	application.Start()
 	defer application.Stop()
 
-	ui.Run(application, logger)
+	ui.Run(application, previews, logger)
 
 	return nil
 }

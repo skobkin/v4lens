@@ -16,6 +16,7 @@ import (
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
 	"git.skobk.in/skobkin/v4lens/internal/domain"
+	"git.skobk.in/skobkin/v4lens/internal/preview"
 	"git.skobk.in/skobkin/v4lens/internal/profile"
 	"git.skobk.in/skobkin/v4lens/internal/ui/viewmodel"
 )
@@ -51,6 +52,9 @@ type MainWindow struct {
 	actions  *profileActions
 	prefsWin *PreferencesWindow
 	unsub    func()
+
+	preview    *preview.Manager
+	previewWin *PreviewWindow
 
 	// UI state lives only on the dispatch/UI goroutine — no locks.
 	devices     []app.DeviceView
@@ -177,8 +181,54 @@ func (m *MainWindow) onClose() {
 	}
 
 	m.stopCoalescer()
+
+	// Stop every preview pipeline synchronously before the device sessions
+	// go away underneath them.
+	if m.preview != nil {
+		m.preview.StopAll()
+	}
+
+	if m.previewWin != nil {
+		m.previewWin.shutdown()
+	}
+
 	m.app.Stop()
 	m.fa.Quit()
+}
+
+// SetPreviewManager wires the streaming lane (the manager doubles as the
+// apply engine's StreamOwner) and enables the Preview button.
+func (m *MainWindow) SetPreviewManager(mgr *preview.Manager) {
+	m.preview = mgr
+	m.previewBtn.SetText("Preview")
+	m.previewBtn.OnTapped = m.onPreview
+	m.previewBtn.Enable()
+}
+
+// onPreview opens (or focuses) the preview window for the selected device.
+// The callback itself performs no device I/O — the window's start path
+// resolves the capture config on its own goroutine.
+func (m *MainWindow) onPreview() {
+	key := m.selected
+
+	if key == "" || m.preview == nil {
+		return
+	}
+
+	if m.previewWin != nil {
+		if m.previewWin.key == key {
+			m.previewWin.win.RequestFocus()
+
+			return
+		}
+
+		// Different device: tear the old preview down, open fresh.
+		m.previewWin.shutdown()
+		m.previewWin.win.Close()
+	}
+
+	m.previewWin = NewPreviewWindow(m.fa, m.preview, m.app.ActiveCapture, m.log)
+	m.previewWin.Show(key)
 }
 
 func (m *MainWindow) onEvent(ev app.Event) {
@@ -196,7 +246,7 @@ func (m *MainWindow) onEvent(ev app.Event) {
 	case app.ActivationRequested:
 		m.win.Show()
 	case app.PreviewState:
-		// Populated by the preview integration.
+		// Reserved for tray state display (Phase 6).
 	}
 }
 
@@ -259,6 +309,14 @@ func (m *MainWindow) onDeviceSelected(label string) {
 // selectDevice switches the whole context to one device ("" = none).
 func (m *MainWindow) selectDevice(key string) {
 	m.stopCoalescer()
+
+	// A device switch closes the preview — the user re-taps Preview for
+	// the new context (no implicit stream start on mere selection).
+	if m.previewWin != nil {
+		m.previewWin.shutdown()
+		m.previewWin.win.Close()
+		m.previewWin = nil
+	}
 
 	m.selected = key
 	m.profileName = ""
