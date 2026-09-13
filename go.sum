@@ -1,0 +1,6 @@
+github.com/pion/mediadevices v0.10.0 h1:xsOwvucz5ZLBABae11bx4Nzofca8NbMcOHFrwgQPgiI=
+github.com/pion/mediadevices v0.10.0/go.mod h1:0dGJQq8VCPo7AXWmhqRITIFyw66uylwDecq7oN+G3gM=
+github.com/vladimirvivien/go4vl v0.5.0 h1:1hTRP7aDsLSuHa4EBIm/VP3M0z16xJGPrxCGlYrbvcQ=
+github.com/vladimirvivien/go4vl v0.5.0/go.mod h1:iWUNl4OswQ/oekJXIS6S8MN5inoPOsbpF3m4azwrzsA=
+golang.org/x/sys v0.48.0 h1:bbX/i/6MgT9BVLM9RT1thmxL04yeTAhbEz4SyadbXoo=
+golang.org/x/sys v0.48.0/go.mod h1:hNLxWAXmnKAxqDtdwIYC4bM9oQPEecfsnNMuSxOs3og=

@@ -1,0 +1,62 @@
+when:
+  - event: [push, pull_request, tag]
+
+steps:
+  fmt:
+    image: golang:1.27-alpine
+    commands:
+      - |
+        fmt_out=$(/usr/local/go/bin/gofmt -l ./cmd ./internal 2>/dev/null)
+        if [ -n "$fmt_out" ]; then
+          echo "The following files need gofmt:"
+          echo "$fmt_out"
+          exit 1
+        fi
+
+  lint:
+    image: golang:1.27-alpine
+    environment:
+      CACHE_ROOT: "$PWD/.ci-cache"
+      GOMODCACHE: "$PWD/.ci-cache/gomod"
+      GOCACHE: "$PWD/.ci-cache/gobuild"
+      GOPATH: "$PWD/.ci-cache/gopath"
+      GOLANGCI_LINT_CACHE: "$PWD/.ci-cache/golangci"
+    commands:
+      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
+      - /root/go/bin/golangci-lint run ./...
+
+  vet:
+    image: golang:1.27-alpine
+    environment:
+      CACHE_ROOT: "$PWD/.ci-cache"
+      GOMODCACHE: "$PWD/.ci-cache/gomod"
+      GOCACHE: "$PWD/.ci-cache/gobuild"
+      GOPATH: "$PWD/.ci-cache/gopath"
+    commands:
+      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      - go vet ./...
+
+  test:
+    image: golang:1.27-alpine
+    environment:
+      CACHE_ROOT: "$PWD/.ci-cache"
+      GOMODCACHE: "$PWD/.ci-cache/gomod"
+      GOCACHE: "$PWD/.ci-cache/gobuild"
+      GOPATH: "$PWD/.ci-cache/gopath"
+    commands:
+      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      # Integration tests stay behind the `integration` build tag; baseline CI needs no camera.
+      - go test ./...
+
+  build:
+    image: golang:1.27-alpine
+    environment:
+      CACHE_ROOT: "$PWD/.ci-cache"
+      GOMODCACHE: "$PWD/.ci-cache/gomod"
+      GOCACHE: "$PWD/.ci-cache/gobuild"
+      GOPATH: "$PWD/.ci-cache/gopath"
+    commands:
+      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      - mkdir -p dist
+      - go build -trimpath -o dist/v4lens ./cmd/v4lens

@@ -1,4 +1,3 @@
-
-
 # temporary agentic docs
-/assets
+/assets/*
+!/assets/v4lens-ui-concept.png
