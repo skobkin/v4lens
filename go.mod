@@ -7,3 +7,8 @@ require (
 	github.com/vladimirvivien/go4vl v0.5.0
 	golang.org/x/sys v0.48.0
 )
+
+require (
+	fyne.io/fyne/v2 v2.8.1 // indirect
+	gopkg.in/yaml.v3 v3.0.1 // indirect
+)
