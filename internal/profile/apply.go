@@ -154,9 +154,8 @@ func (a *Applier) Apply(ctx context.Context, sess *device.Session, key string, p
 	return res
 }
 
-// applyCapture covers steps 2-5: decide whether the capture config differs,
-// suspend our stream if we own one, run the whole transaction on a detached
-// fd, resume, and record EBUSY without failing the run.
+// applyCapture covers steps 2-5 for a profile: delegate to the shared
+// capture transaction and record the outcome.
 func (a *Applier) applyCapture(ctx context.Context, mut *device.Mutation, key string, p *Profile, owner StreamOwner, res *ApplyResult) {
 	if p.Capture == nil {
 		res.Capture = CaptureOutcome{Status: StepSkipped, Reason: "profile does not manage capture"}
@@ -164,6 +163,17 @@ func (a *Applier) applyCapture(ctx context.Context, mut *device.Mutation, key st
 		return
 	}
 
+	_, res.Capture = ApplyCapture(ctx, mut, key, *p.Capture, owner)
+}
+
+// ApplyCapture runs the capture-configuration transaction (ARCHITECTURE
+// §7 steps 2-5) for want inside the exclusive mutation mut: read the
+// current config, skip when it already matches, suspend our own preview,
+// run the whole transaction (S_INPUT + S_FMT + S_PARM + read-backs) on a
+// short-lived configuration fd, and resume our stream with the effective
+// configuration. EBUSY from an external owner yields an
+// attempted-but-skipped outcome; callers continue with controls.
+func ApplyCapture(ctx context.Context, mut *device.Mutation, key string, want domain.CaptureConfig, owner StreamOwner) (domain.CaptureConfig, CaptureOutcome) {
 	var current domain.CaptureConfig
 
 	if err := mut.Do(func(h device.Handle) error {
@@ -176,20 +186,17 @@ func (a *Applier) applyCapture(ctx context.Context, mut *device.Mutation, key st
 
 		return nil
 	}); err != nil {
-		res.Capture = CaptureOutcome{Status: StepFailed, Reason: fmt.Sprintf("read current capture config: %v", err)}
-
-		return
+		return domain.CaptureConfig{}, CaptureOutcome{Status: StepFailed, Reason: fmt.Sprintf("read current capture config: %v", err)}
 	}
 
-	// Steps 2: nothing to do when the device already matches.
-	if p.Capture.Equal(current) {
-		res.Capture = CaptureOutcome{Status: StepSkipped, Reason: "capture config already matches"}
-
-		return
+	// Step 2: nothing to do when the device already matches.
+	if want.Equal(current) {
+		return current, CaptureOutcome{Status: StepSkipped, Reason: "capture config already matches"}
 	}
 
 	// Step 3: suspend our own preview before the format transaction.
-	resume, owned := suspendForReconfigure(ctx, owner, key, res)
+	// (resume is nil when we do not own a stream or the suspend failed.)
+	resume, _, reason := suspendForReconfigure(ctx, owner, key)
 
 	// Step 4: the whole transaction on a short-lived configuration fd.
 	var effective domain.CaptureConfig
@@ -200,7 +207,7 @@ func (a *Applier) applyCapture(ctx context.Context, mut *device.Mutation, key st
 			return fmt.Errorf("backend cannot configure capture")
 		}
 
-		eff, err := cc.ConfigureDetached(ctx, *p.Capture)
+		eff, err := cc.ConfigureDetached(ctx, want)
 		if err != nil {
 			return err
 		}
@@ -212,47 +219,61 @@ func (a *Applier) applyCapture(ctx context.Context, mut *device.Mutation, key st
 
 	switch {
 	case err == nil:
-		res.Capture = CaptureOutcome{Attempted: true, Status: StepApplied, Effective: &effective}
+		// Step 5: resume our own stream with the effective configuration
+		// (resume is nil when we never owned one).
+		return effective, CaptureOutcome{
+			Attempted: true,
+			Status:    StepApplied,
+			Reason:    resumeStream(ctx, resume, effective, reason),
+			Effective: &effective,
+		}
 	case errors.Is(err, domain.ErrBusy):
 		// EBUSY from an external owner: record and continue with controls.
-		res.Capture = CaptureOutcome{
+		return current, CaptureOutcome{
 			Attempted: true,
 			Status:    StepSkipped,
 			Reason:    "device busy — capture configuration held by another application",
 		}
-
-		return
 	default:
-		res.Capture = CaptureOutcome{Attempted: true, Status: StepFailed, Reason: err.Error()}
 
-		return
-	}
-
-	// Step 5: resume our own stream with the effective configuration.
-	if owned && resume != nil {
-		if rerr := resume(ctx, effective); rerr != nil {
-			res.Capture.Reason = fmt.Sprintf("applied, but preview restart failed: %v", rerr)
-		}
+		return domain.CaptureConfig{}, CaptureOutcome{Attempted: true, Status: StepFailed, Reason: err.Error()}
 	}
 }
 
-func suspendForReconfigure(ctx context.Context, owner StreamOwner, key string, res *ApplyResult) (func(context.Context, domain.CaptureConfig) error, bool) {
+// resumeStream restarts our own preview with the effective configuration,
+// appending any failure to the outcome reason.
+func resumeStream(ctx context.Context, resume func(context.Context, domain.CaptureConfig) error, effective domain.CaptureConfig, reason string) string {
+	if resume == nil {
+		return reason
+	}
+
+	if rerr := resume(ctx, effective); rerr != nil {
+		r := fmt.Sprintf("applied, but preview restart failed: %v", rerr)
+		if reason != "" {
+			r = reason + "; " + r
+		}
+
+		return r
+	}
+
+	return reason
+}
+
+func suspendForReconfigure(ctx context.Context, owner StreamOwner, key string) (func(context.Context, domain.CaptureConfig) error, bool, string) {
 	if owner == nil {
-		return nil, false
+		return nil, false, ""
 	}
 
 	resume, owned, err := owner.SuspendForReconfigure(ctx, key)
 	if err != nil {
-		res.Capture.Reason = fmt.Sprintf("preview suspend failed: %v", err)
-
-		return nil, false
+		return nil, false, fmt.Sprintf("preview suspend failed: %v", err)
 	}
 
 	if !owned {
-		return nil, false
+		return nil, false, ""
 	}
 
-	return resume, true
+	return resume, true, ""
 }
 
 // applyControls covers steps 6-9: re-enumerate (format changes can change

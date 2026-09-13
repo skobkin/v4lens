@@ -1,16 +1,22 @@
 // Command v4lens runs the V4Lens camera configuration tray application.
 //
-// This is the Phase 1 bootstrap: preferences and logging come up before
-// anything else; device, UI, tray and single-instance wiring are added by
-// the later phases.
+// Preferences and logging come up before anything else; the device app and
+// the main window are wired here. Tray, single-instance and autostart
+// integration land with the platform phase.
 package main
 
 import (
 	"os"
 
+	"git.skobk.in/skobkin/v4lens/internal/app"
 	"git.skobk.in/skobkin/v4lens/internal/config"
+	"git.skobk.in/skobkin/v4lens/internal/device"
+	"git.skobk.in/skobkin/v4lens/internal/domain"
 	"git.skobk.in/skobkin/v4lens/internal/logging"
 	"git.skobk.in/skobkin/v4lens/internal/platform"
+	"git.skobk.in/skobkin/v4lens/internal/profile"
+	"git.skobk.in/skobkin/v4lens/internal/ui"
+	"git.skobk.in/skobkin/v4lens/internal/v4l"
 )
 
 // version is overridden at build time via -ldflags.
@@ -49,6 +55,28 @@ func run() error {
 		"version", version,
 		"config", dirs.AppConfigFile(),
 	)
+
+	application, err := app.New(app.Options{
+		Config:   config.NewStore(dirs.AppConfigFile()),
+		Profiles: profile.NewStore(dirs.ProfilesRoot(), logger),
+		Log:      logger,
+		OpenBackend: func(identity domain.DeviceIdentity) (device.Handle, error) {
+			ep := identity.CaptureEndpoint()
+
+			return v4l.NewHandle(ep.Node)
+		},
+		Roots: device.DefaultRoots(v4l.ClassifyNode),
+	})
+	if err != nil {
+		logger.Error("app bootstrap failed", "err", err)
+
+		return err
+	}
+
+	application.Start()
+	defer application.Stop()
+
+	ui.Run(application, logger)
 
 	return nil
 }
