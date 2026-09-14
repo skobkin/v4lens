@@ -20,6 +20,10 @@ import (
 func Run(a *app.App, previews *preview.Manager, dirs platform.Dirs, background bool, log *slog.Logger) {
 	fa := fyneapp.New()
 
+	// V4Lens colors for both variants; the variant itself (dark/light)
+	// follows the system color scheme and live-updates from the desktop.
+	fa.Settings().SetTheme(newTheme())
+
 	m := NewMainWindow(fa, a, dirs, log)
 
 	if previews != nil {

@@ -184,6 +184,7 @@ func guiMain() int {
 	}
 
 	guiFa = fyneapp.New()
+	guiFa.Settings().SetTheme(newTheme())
 	// Empty lookup: platform falls back to the real $HOME-based XDG paths.
 	guiMW = NewMainWindow(guiFa, application, platform.ForTest(func(string) string { return "" }, os.Getuid()), guiLogger)
 	guiMW.SetPreviewManager(guiMgr)
