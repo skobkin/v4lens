@@ -128,3 +128,12 @@ the integration suite):**
 - External-owner behavior re-confirmed in the scripted suite: while an external
   `v4l2-ctl --stream-mmap` ran, both a detached reconfigure and our own stream
   open returned EBUSY, and the external stream finished undisturbed.
+
+## 2026-09-14 — D015 — Main-window tab order
+
+The main-window tabs are ordered `PTZ, Image, Advanced, Format`. This amends
+the illustrative ordering in D003 after the owner's manual testing of the
+finished MVP: Image sits directly next to Advanced so related tuning groups
+(white balance lives in Advanced) are one tab away, with PTZ adjacent to
+Image. The UI concept image's `Image, PTZ, Format, Advanced` ordering is
+deliberately not followed.
