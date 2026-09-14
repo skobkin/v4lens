@@ -4,9 +4,11 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/theme"
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
 	"git.skobk.in/skobkin/v4lens/internal/platform"
+	"git.skobk.in/skobkin/v4lens/internal/resources"
 )
 
 // Tray integration: a flat menu (two levels max, no app-name header)
@@ -38,7 +40,7 @@ func (m *MainWindow) rebuildTray() {
 // buildTrayMenu assembles the menu from the current device list and
 // preferences. Pure with respect to device state — no device I/O.
 func (m *MainWindow) buildTrayMenu() *fyne.Menu {
-	open := fyne.NewMenuItem("Open", m.showMainWindow)
+	open := fyne.NewMenuItemWithIcon("Open", theme.FolderOpenIcon(), m.showMainWindow)
 
 	items := []*fyne.MenuItem{
 		open,
@@ -58,8 +60,8 @@ func (m *MainWindow) buildTrayMenu() *fyne.Menu {
 		fyne.NewMenuItemSeparator(),
 		m.buildTrayAutostartItem(),
 		m.buildTrayApplyOnStartItem(),
-		fyne.NewMenuItem("Preferences…", m.showPreferences),
-		fyne.NewMenuItem("Quit", m.onQuit),
+		fyne.NewMenuItemWithIcon("Preferences…", theme.SettingsIcon(), m.showPreferences),
+		fyne.NewMenuItemWithIcon("Quit", theme.NewThemedResource(resources.PowerIcon), m.onQuit),
 	)
 
 	return fyne.NewMenu("", items...)
@@ -70,7 +72,7 @@ func (m *MainWindow) buildTrayMenu() *fyne.Menu {
 func (m *MainWindow) buildTrayPreviewItem() *fyne.MenuItem {
 	connected := m.connectedDeviceKeys()
 
-	item := fyne.NewMenuItem("Preview", nil)
+	item := fyne.NewMenuItemWithIcon("Preview", theme.MediaPlayIcon(), nil)
 
 	switch len(connected) {
 	case 0:
@@ -98,7 +100,7 @@ func (m *MainWindow) buildTrayPreviewItem() *fyne.MenuItem {
 func (m *MainWindow) buildTrayDeviceItem(d app.DeviceView) *fyne.MenuItem {
 	key := d.Identity.Key
 
-	item := fyne.NewMenuItem(m.displayNameOf(key), nil)
+	item := fyne.NewMenuItemWithIcon(m.displayNameOf(key), theme.NewThemedResource(resources.CameraIcon), nil)
 
 	names, err := m.app.Profiles(key)
 	if err != nil {
