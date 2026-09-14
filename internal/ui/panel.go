@@ -3,35 +3,46 @@ package ui
 import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"git.skobk.in/skobkin/v4lens/internal/domain"
+	"git.skobk.in/skobkin/v4lens/internal/resources"
 	"git.skobk.in/skobkin/v4lens/internal/ui/viewmodel"
 )
+
+// cardGap is the vertical air between group cards.
+const cardGap = 10
 
 // ControlPanel renders one tab's controls: curated semantics place
 // well-known controls into ordered groups (Image/PTZ), everything else
 // lands in Advanced grouped by control class in driver order. Unknown
-// controls never disappear.
+// controls never disappear. Groups render as rounded cards, and the card
+// stack scrolls — cards are much taller than the old flat lists.
 type ControlPanel struct {
 	hooks Hooks
 
 	box       *fyne.Container
+	scroller  *container.Scroll
 	renderers map[uint32]ControlRenderer
 }
 
 // NewControlPanel builds an empty panel.
 func NewControlPanel(hooks Hooks) *ControlPanel {
-	return &ControlPanel{
+	p := &ControlPanel{
 		hooks:     hooks,
-		box:       container.NewVBox(),
+		box:       newSpacedVBox(cardGap),
 		renderers: map[uint32]ControlRenderer{},
 	}
+
+	p.scroller = container.NewVScroll(container.NewPadded(p.box))
+
+	return p
 }
 
 // Object returns the panel canvas object.
 func (p *ControlPanel) Object() fyne.CanvasObject {
-	return p.box
+	return p.scroller
 }
 
 // Renderer returns the live renderer for one control (nil when the panel
@@ -50,17 +61,16 @@ func (p *ControlPanel) SetContent(descs []domain.ControlDescriptor, values map[u
 	if len(descs) == 0 {
 		empty := widget.NewLabel("No controls in this tab.")
 		empty.Alignment = fyne.TextAlignCenter
+		empty.TextStyle = fyne.TextStyle{Italic: true}
+		empty.Importance = widget.LowImportance
 
-		p.box.Add(empty)
+		p.box.Add(container.NewCenter(empty))
 
 		return
 	}
 
 	for _, group := range groupControls(descs, advanced) {
-		head := widget.NewLabel(group.title)
-		head.TextStyle = fyne.TextStyle{Bold: true}
-
-		p.box.Add(head)
+		rows := make([]fyne.CanvasObject, 0, len(group.descs))
 
 		for _, d := range group.descs {
 			var v *domain.ControlValue
@@ -71,11 +81,38 @@ func (p *ControlPanel) SetContent(descs []domain.ControlDescriptor, values map[u
 
 			r := newControlRenderer(d, v, p.hooks)
 			p.renderers[d.ID] = r
-			p.box.Add(r.Object())
+			rows = append(rows, r.Object())
 
 			// Replay current dependency flags into the fresh renderer.
 			r.SetDisabled(disabledOf(d), disabledReasonOf(d))
 		}
+
+		p.box.Add(newCard(groupIcon(group.title), group.title, rows))
+	}
+}
+
+// groupIcon picks a card header icon for a group title: curated groups
+// get their semantic glyph, driver-class groups the generic chip.
+func groupIcon(title string) fyne.Resource {
+	switch title {
+	case viewmodel.GroupExposure:
+
+		return theme.NewThemedResource(resources.SunIcon)
+	case viewmodel.GroupImage:
+
+		return theme.NewThemedResource(resources.SlidersIcon)
+	case viewmodel.GroupWhiteBalance:
+
+		return theme.NewThemedResource(resources.ThermometerIcon)
+	case viewmodel.GroupFocus:
+
+		return theme.NewThemedResource(resources.LensIcon)
+	case viewmodel.GroupPTZ:
+
+		return theme.NewThemedResource(resources.CrosshairIcon)
+	default:
+
+		return theme.NewThemedResource(resources.ChipIcon)
 	}
 }
 

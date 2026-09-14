@@ -16,8 +16,8 @@ func newTestEnv(t *testing.T) {
 	test.NewApp()
 }
 
-// walk descends into containers (our rows compose only containers plus
-// leaf editor widgets).
+// walk descends into containers and through our card widgets into their
+// content (our rows compose only containers plus leaf editor widgets).
 func walk(obj fyne.CanvasObject, fn func(fyne.CanvasObject)) {
 	fn(obj)
 
@@ -25,6 +25,10 @@ func walk(obj fyne.CanvasObject, fn func(fyne.CanvasObject)) {
 		for _, o := range c.Objects {
 			walk(o, fn)
 		}
+	}
+
+	if card, ok := obj.(*cardWidget); ok {
+		walk(card.content, fn)
 	}
 }
 
@@ -400,14 +404,15 @@ func TestControlPanelGroupsAndRegisters(t *testing.T) {
 	// Advanced grouping keeps driver order within class groups and class
 	// groups in first-appearance order; the curated white balance control
 	// keeps its own titled group instead of the driver class name:
-	// User Controls, White Balance, Camera Controls, UVC Vendor.
+	// User Controls, White Balance, Camera Controls, UVC Vendor. The bold
+	// titles now live inside the group cards, so walk descends into them.
 	var titles []string
 
-	for _, o := range p.box.Objects {
+	walk(p.box, func(o fyne.CanvasObject) {
 		if l, ok := o.(*widget.Label); ok && l.TextStyle.Bold {
 			titles = append(titles, l.Text)
 		}
-	}
+	})
 
 	want := []string{"User Controls", "White Balance", "Camera Controls", "UVC Vendor"}
 

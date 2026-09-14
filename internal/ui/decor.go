@@ -6,6 +6,8 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
+	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
@@ -117,4 +119,69 @@ func captionLabel(s string) *widget.Label {
 	l.Importance = widget.LowImportance
 
 	return l
+}
+
+// cardRadius is the corner rounding of group cards.
+const cardRadius = 8
+
+// cardWidget is a rounded surface holding one control group. The
+// background follows the theme's menu/card color; the content is a public
+// container so test walks can descend into it.
+type cardWidget struct {
+	widget.BaseWidget
+	stack   *fyne.Container
+	bg      *canvas.Rectangle
+	content *fyne.Container
+}
+
+// newCard assembles one group card: optional icon + bold title, a
+// hairline separator, then the rows.
+func newCard(icon fyne.Resource, title string, rows []fyne.CanvasObject) *cardWidget {
+	head := widget.NewLabel(title)
+	head.TextStyle = fyne.TextStyle{Bold: true} // test-visible group marker
+
+	header := make([]fyne.CanvasObject, 0, 2)
+
+	if icon != nil {
+		header = append(header, widget.NewIcon(icon))
+	}
+
+	header = append(header, head)
+
+	body := make([]fyne.CanvasObject, 0, len(rows)+2)
+	body = append(body, container.NewHBox(header...), widget.NewSeparator())
+	body = append(body, rows...)
+
+	c := &cardWidget{
+		// Roomier than the theme padding: cards read as surfaces, not rows.
+		content: container.NewVBox(body...),
+	}
+	c.ExtendBaseWidget(c)
+
+	c.bg = canvas.NewRectangle(c.current())
+	c.bg.CornerRadius = cardRadius
+	c.stack = container.NewStack(c.bg, container.New(layout.NewCustomPaddedLayout(cardPad, cardPad, cardPad, cardPad), c.content))
+
+	return c
+}
+
+// cardPad is the inner padding of a group card.
+const cardPad = 12
+
+// CreateRenderer presents the padded content over the rounded background.
+func (c *cardWidget) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(c.stack)
+}
+
+// Refresh re-resolves the card color so theme switches re-skin it.
+func (c *cardWidget) Refresh() {
+	if c.bg != nil {
+		c.bg.FillColor = c.current()
+	}
+
+	c.BaseWidget.Refresh()
+}
+
+func (c *cardWidget) current() color.Color {
+	return c.Theme().Color(theme.ColorNameMenuBackground, fyne.CurrentApp().Settings().ThemeVariant())
 }

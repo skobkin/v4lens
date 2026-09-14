@@ -37,3 +37,54 @@ func (f fixedWidthLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
 func withFixedWidth(width float32, obj fyne.CanvasObject) fyne.CanvasObject {
 	return container.New(fixedWidthLayout{width: width}, obj)
 }
+
+// spacedVBoxLayout stacks objects full-width with a fixed vertical gap —
+// group cards need more air between them than a plain VBox's theme
+// padding (the padding is fixed at theme construction time).
+type spacedVBoxLayout struct {
+	gap float32
+}
+
+// Layout packs the objects into a single column with the fixed gap.
+func (v spacedVBoxLayout) Layout(objects []fyne.CanvasObject, size fyne.Size) {
+	y := float32(0)
+
+	for _, child := range objects {
+		if !child.Visible() {
+			continue
+		}
+
+		child.Move(fyne.NewPos(0, y))
+		child.Resize(fyne.NewSize(size.Width, child.MinSize().Height))
+		y += child.MinSize().Height + v.gap
+	}
+}
+
+// MinSize sums the children and their gaps.
+func (v spacedVBoxLayout) MinSize(objects []fyne.CanvasObject) fyne.Size {
+	w, h := float32(0), float32(0)
+	first := true
+
+	for _, child := range objects {
+		if !child.Visible() {
+			continue
+		}
+
+		childMin := child.MinSize()
+		w = fyne.Max(w, childMin.Width)
+
+		if !first {
+			h += v.gap
+		}
+
+		h += childMin.Height
+		first = false
+	}
+
+	return fyne.NewSize(w, h)
+}
+
+// newSpacedVBox stacks objects with a fixed vertical gap.
+func newSpacedVBox(gap float32, objects ...fyne.CanvasObject) *fyne.Container {
+	return container.New(spacedVBoxLayout{gap: gap}, objects...)
+}
