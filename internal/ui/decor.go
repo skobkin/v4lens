@@ -185,3 +185,45 @@ func (c *cardWidget) Refresh() {
 func (c *cardWidget) current() color.Color {
 	return c.Theme().Color(theme.ColorNameMenuBackground, fyne.CurrentApp().Settings().ThemeVariant())
 }
+
+// pillWidget is a floating rounded capsule for overlay status text (the
+// preview window's "Reconfiguring format…" toast).
+type pillWidget struct {
+	widget.BaseWidget
+	stack *fyne.Container
+	bg    *canvas.Rectangle
+}
+
+// pillRadius rounds the capsule.
+const pillRadius = 18
+
+// newPill wraps content in the themed capsule.
+func newPill(content fyne.CanvasObject) *pillWidget {
+	p := &pillWidget{}
+	p.ExtendBaseWidget(p)
+
+	p.bg = canvas.NewRectangle(p.current())
+	p.bg.CornerRadius = pillRadius
+
+	p.stack = container.NewStack(p.bg, container.New(layout.NewCustomPaddedLayout(10, 10, 16, 16), content))
+
+	return p
+}
+
+// CreateRenderer presents the padded content over the rounded capsule.
+func (p *pillWidget) CreateRenderer() fyne.WidgetRenderer {
+	return widget.NewSimpleRenderer(p.stack)
+}
+
+// Refresh re-resolves the capsule color so theme switches re-skin it.
+func (p *pillWidget) Refresh() {
+	if p.bg != nil {
+		p.bg.FillColor = p.current()
+	}
+
+	p.BaseWidget.Refresh()
+}
+
+func (p *pillWidget) current() color.Color {
+	return p.Theme().Color(theme.ColorNameOverlayBackground, fyne.CurrentApp().Settings().ThemeVariant())
+}

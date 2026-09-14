@@ -12,6 +12,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"git.skobk.in/skobkin/v4lens/internal/domain"
@@ -38,10 +39,13 @@ type PreviewWindow struct {
 	done    chan struct{}
 	stopped sync.Once
 
-	image   *canvas.Image
-	status  *widget.Label
-	overlay *fyne.Container
-	overTxt *widget.Label
+	image       *canvas.Image
+	statusDot   *statusDot
+	statusState *widget.Label
+	statusInfo  *widget.Label
+	overlay     *fyne.Container
+	overIcon    *widget.Icon
+	overTxt     *widget.Label
 
 	// fps measurement window (UI goroutine only).
 	frames   int
@@ -76,19 +80,28 @@ func NewPreviewWindow(fa fyne.App, mgr *preview.Manager,
 	w.image = canvas.NewImageFromImage(nil)
 	w.image.FillMode = canvas.ImageFillContain
 
-	w.status = widget.NewLabel("Starting…")
-	w.status.TextStyle = fyne.TextStyle{Monospace: true}
+	w.statusDot = newStatusDot()
+	w.statusState = widget.NewLabel("Starting…")
+	w.statusState.TextStyle = fyne.TextStyle{Bold: true}
+
+	w.statusInfo = widget.NewLabel("")
+	w.statusInfo.Importance = widget.LowImportance
+
+	statusBar := container.NewHBox(w.statusDot, w.statusState, w.statusInfo)
+
+	w.overIcon = widget.NewIcon(theme.SettingsIcon())
 
 	w.overTxt = widget.NewLabel("")
 	w.overTxt.TextStyle = fyne.TextStyle{Italic: true}
-	w.overTxt.Alignment = fyne.TextAlignCenter
+
+	pill := newPill(container.NewHBox(w.overIcon, w.overTxt))
 
 	shade := canvas.NewRectangle(shadeColor())
-	w.overlay = container.NewStack(shade, container.NewCenter(w.overTxt))
+	w.overlay = container.NewStack(shade, container.NewCenter(pill))
 	w.overlay.Hide()
 
 	w.win = fa.NewWindow("V4Lens — Preview")
-	w.win.SetContent(container.NewBorder(nil, w.status, nil, nil, container.NewStack(w.image, w.overlay)))
+	w.win.SetContent(container.NewBorder(nil, statusBar, nil, nil, container.NewStack(w.image, w.overlay)))
 	w.win.Resize(fyne.NewSize(800, 560))
 	w.win.SetCloseIntercept(w.closeRequested)
 
@@ -129,7 +142,7 @@ func (w *PreviewWindow) restartFor(key string) {
 	oldKey := w.key
 
 	w.key = key
-	w.status.SetText("Starting…")
+	w.setStarting()
 	w.setImage(nil)
 
 	go func() {
@@ -146,7 +159,7 @@ func (w *PreviewWindow) restartFor(key string) {
 func (w *PreviewWindow) start(key string) {
 	cfg, err := w.active(context.Background(), key)
 	if err != nil {
-		w.dispatchStatus("✗ " + err.Error())
+		w.dispatch(func() { w.setFailure(err) })
 
 		return
 	}
@@ -154,7 +167,7 @@ func (w *PreviewWindow) start(key string) {
 	p := w.mgr.PipelineFor(key)
 
 	if err := p.Start(context.Background(), cfg); err != nil {
-		w.dispatchStatus("✗ " + err.Error())
+		w.dispatch(func() { w.setFailure(err) })
 
 		return
 	}
@@ -162,6 +175,14 @@ func (w *PreviewWindow) start(key string) {
 	w.pipe = p
 
 	go w.consume(p)
+}
+
+// setFailure renders a startup error in the state bar.
+func (w *PreviewWindow) setFailure(err error) {
+	w.statusDot.SetColor(theme.ColorNameError)
+	w.statusState.SetText("Error")
+	w.statusInfo.SetText(err.Error())
+	w.statusInfo.Refresh()
 }
 
 // consume forwards pipeline events to the UI goroutine until the window is
@@ -195,28 +216,55 @@ func (w *PreviewWindow) applyEvent(ev preview.Event) {
 		w.setImage(ev.Img)
 		w.overlay.Hide()
 		w.tickFPS()
-		w.status.SetText(previewStatusText(ev, w.lastFPS, w.fpsKnown))
+		w.setStatus(ev)
 
 	case preview.StateFrozen:
 		if ev.Img != nil {
 			w.setImage(ev.Img)
 		}
 
-		w.overTxt.SetText("Reconfiguring format…")
-		w.overlay.Show()
-		w.status.SetText(previewStatusText(ev, w.lastFPS, w.fpsKnown))
+		w.setOverlay(theme.SettingsIcon(), "Reconfiguring format…")
+		w.setStatus(ev)
 		w.resetFPS()
 
 	case preview.StateUnsupported, preview.StateBusy, preview.StateError:
-		w.overTxt.SetText(ev.Detail)
-		w.overlay.Show()
-		w.status.SetText(previewStatusText(ev, w.lastFPS, w.fpsKnown))
+		icon := theme.WarningIcon()
+		if ev.State == preview.StateError {
+			icon = theme.ErrorIcon()
+		}
+
+		w.setOverlay(icon, ev.Detail)
+		w.setStatus(ev)
 		w.resetFPS()
 
 	case preview.StateStopped:
-		w.status.SetText(previewStatusText(ev, w.lastFPS, w.fpsKnown))
+		w.setStatus(ev)
 		w.resetFPS()
 	}
+}
+
+// setStatus renders the segmented state bar: dot color, state name and
+// the details segment.
+func (w *PreviewWindow) setStatus(ev preview.Event) {
+	w.statusDot.SetColor(previewStateColor(ev))
+	w.statusState.SetText(previewStateLabel(ev))
+	w.statusInfo.SetText(previewDetails(ev, w.lastFPS, w.fpsKnown))
+	w.statusInfo.Refresh()
+}
+
+// setStarting resets the bar to the neutral starting state.
+func (w *PreviewWindow) setStarting() {
+	w.statusDot.SetColor(theme.ColorNameDisabled)
+	w.statusState.SetText("Starting…")
+	w.statusInfo.SetText("")
+	w.statusInfo.Refresh()
+}
+
+// setOverlay configures and shows the status overlay.
+func (w *PreviewWindow) setOverlay(icon fyne.Resource, text string) {
+	w.overIcon.SetResource(icon)
+	w.overTxt.SetText(text)
+	w.overlay.Show()
 }
 
 // tickFPS accumulates rendered frames over a one-second window (UI
@@ -249,10 +297,6 @@ func (w *PreviewWindow) setImage(img image.Image) {
 	w.image.Refresh()
 }
 
-func (w *PreviewWindow) dispatchStatus(text string) {
-	w.dispatch(func() { w.status.SetText(text) })
-}
-
 // closeRequested is the window close intercept: stop the event consumer
 // and tear the pipeline down asynchronously (the UI never waits on device
 // teardown).
@@ -275,12 +319,55 @@ func (w *PreviewWindow) shutdown() {
 	})
 }
 
-// previewStatusText renders the truthful status line for one event. fps
-// values are the MEASURED render rate (no driver promise).
-func previewStatusText(ev preview.Event, fps float64, fpsKnown bool) string {
+// previewStateLabel names the state truthfully.
+func previewStateLabel(ev preview.Event) string {
 	switch ev.State {
 	case preview.StateStreaming:
-		s := fmt.Sprintf("● Previewing · %s · %dx%d", ev.Layout.FourCC, ev.Layout.Width, ev.Layout.Height)
+
+		return "Previewing"
+	case preview.StateFrozen:
+
+		return "Frozen"
+	case preview.StateBusy:
+
+		return "Device busy"
+	case preview.StateUnsupported:
+
+		return "Unsupported"
+	case preview.StateError:
+
+		return "Error"
+	default:
+
+		return "Stopped"
+	}
+}
+
+// previewStateColor maps a state to its indicator color.
+func previewStateColor(ev preview.Event) fyne.ThemeColorName {
+	switch ev.State {
+	case preview.StateStreaming:
+
+		return theme.ColorNameSuccess
+	case preview.StateFrozen, preview.StateBusy:
+
+		return theme.ColorNameWarning
+	case preview.StateUnsupported, preview.StateError:
+
+		return theme.ColorNameError
+	default:
+
+		return theme.ColorNameDisabled
+	}
+}
+
+// previewDetails renders the secondary segment: layout + measured rate
+// while streaming, the reconfigure note while frozen, the pipeline detail
+// otherwise. fps values are the MEASURED render rate (no driver promise).
+func previewDetails(ev preview.Event, fps float64, fpsKnown bool) string {
+	switch ev.State {
+	case preview.StateStreaming:
+		s := fmt.Sprintf("%s · %d × %d", ev.Layout.FourCC, ev.Layout.Width, ev.Layout.Height)
 
 		if fpsKnown {
 			s += fmt.Sprintf(" · %.0f fps", fps)
@@ -289,15 +376,9 @@ func previewStatusText(ev preview.Event, fps float64, fpsKnown bool) string {
 		return s
 	case preview.StateFrozen:
 
-		return "⏸ Frozen — reconfiguring format…"
-	case preview.StateBusy:
-
-		return "⏳ Device busy — " + ev.Detail
-	case preview.StateUnsupported, preview.StateError:
-
-		return "✗ " + ev.Detail
+		return "Reconfiguring format…"
 	default:
 
-		return "Preview stopped"
+		return ev.Detail
 	}
 }
