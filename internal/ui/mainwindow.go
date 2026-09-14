@@ -3,14 +3,10 @@ package ui
 import (
 	"context"
 	"fmt"
-	"image/color"
 	"log/slog"
-	"strings"
 
 	"fyne.io/fyne/v2"
-	"fyne.io/fyne/v2/canvas"
 	"fyne.io/fyne/v2/container"
-	"fyne.io/fyne/v2/dialog"
 	"fyne.io/fyne/v2/driver/desktop"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
@@ -20,15 +16,17 @@ import (
 	"git.skobk.in/skobkin/v4lens/internal/platform"
 	"git.skobk.in/skobkin/v4lens/internal/preview"
 	"git.skobk.in/skobkin/v4lens/internal/profile"
+	"git.skobk.in/skobkin/v4lens/internal/resources"
 	"git.skobk.in/skobkin/v4lens/internal/ui/viewmodel"
 )
 
-// MainWindow is the main application shell: context bar (device select +
-// status dot, profile select + default marker, Save/Preview/overflow),
-// the four tabs (PTZ / Image / Advanced / Format) and the state footer.
-// Image sits directly next to Advanced so related tuning groups (white
-// balance) are one tab away. All bus events reach the widgets through
-// dispatched functions — device I/O never runs inside Fyne callbacks.
+// MainWindow is the main application shell: context bar (Camera group —
+// device select + status dot + state text; Profile group — profile select
+// + default marker; Save/Preview/overflow on the right), the four tabs
+// (PTZ / Image / Advanced / Format) and the state footer. Image sits
+// directly next to Advanced so related tuning groups (white balance) are
+// one tab away. All bus events reach the widgets through dispatched
+// functions — device I/O never runs inside Fyne callbacks.
 type MainWindow struct {
 	fa  fyne.App
 	app *app.App
@@ -38,12 +36,14 @@ type MainWindow struct {
 	// Dispatch defaults to fyne.Do; tests inject a synchronous runner.
 	Dispatch func(fn func())
 
-	deviceSel  *widget.Select
-	statusDot  *canvas.Circle
-	profileSel *widget.Select
-	saveBtn    *widget.Button
-	previewBtn *widget.Button
-	moreBtn    *widget.Button
+	deviceSel   *widget.Select
+	statusDot   *statusDot
+	statusText  *widget.Label
+	profileSel  *widget.Select
+	defaultMark *fyne.Container
+	saveBtn     *widget.Button
+	previewBtn  *widget.Button
+	moreBtn     *widget.Button
 
 	tabs   *container.AppTabs
 	imageP *ControlPanel
@@ -81,8 +81,8 @@ type MainWindow struct {
 func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger) *MainWindow {
 	m := &MainWindow{fa: fa, app: a, dirs: dirs, log: log, win: fa.NewWindow("V4Lens")}
 
-	m.statusDot = &canvas.Circle{FillColor: color.NRGBA{R: 0x88, G: 0x88, B: 0x88, A: 0xff}}
-	m.statusDot.Resize(fyne.NewSize(12, 12))
+	m.statusDot = newStatusDot()
+	m.statusText = widget.NewLabel("")
 
 	m.deviceSel = widget.NewSelect(nil, m.onDeviceSelected)
 	m.deviceSel.PlaceHolder = "No device"
@@ -90,14 +90,24 @@ func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger
 	m.profileSel = widget.NewSelect(nil, m.onProfileSelected)
 	m.profileSel.PlaceHolder = "No profile selected"
 
-	m.saveBtn = widget.NewButton("Save", nil)
-	m.previewBtn = widget.NewButton("Preview", nil)
+	// The star lights up only while the selected profile is the device's
+	// default; the option list itself stays plain.
+	m.defaultMark = container.NewHBox(
+		widget.NewIcon(theme.NewWarningThemedResource(resources.StarIcon)),
+		widget.NewLabel("Default"),
+	)
+	m.defaultMark.Hide()
+
+	m.saveBtn = widget.NewButtonWithIcon("Save", theme.DocumentSaveIcon(), nil)
+	m.saveBtn.Importance = widget.HighImportance
+
+	m.previewBtn = widget.NewButtonWithIcon("Preview", theme.MediaPlayIcon(), nil)
 
 	// The preview window arrives with the streaming integration.
 	m.previewBtn.Disable()
 	m.previewBtn.SetText("Preview (soon)")
 
-	m.moreBtn = widget.NewButtonWithIcon("", theme.MoreHorizontalIcon(), m.showOverflow)
+	m.moreBtn = widget.NewButtonWithIcon("", theme.MoreVerticalIcon(), m.showOverflow)
 
 	m.imageP = NewControlPanel(Hooks{})
 	m.ptzP = NewControlPanel(Hooks{})
@@ -116,16 +126,23 @@ func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger
 	m.footer.TextStyle = fyne.TextStyle{Monospace: true}
 	m.footer.Wrapping = fyne.TextWrapWord
 
-	bar := container.NewHBox(
-		m.statusDot,
-		// Fixed width so the camera name is readable instead of clipped to
-		// the select's minimum size.
-		withFixedWidth(260, m.deviceSel),
-		widget.NewLabel("Profile:"),
-		m.profileSel,
-		m.saveBtn,
-		m.previewBtn,
-		m.moreBtn,
+	// Two captioned groups (Camera / Profile) with a hairline divider
+	// between them; the actions pin to the right edge.
+	camGroup := container.NewVBox(captionLabel("Camera"),
+		container.NewHBox(
+			// Fixed width so the camera name is readable instead of clipped
+			// to the select's minimum size.
+			withFixedWidth(260, m.deviceSel),
+			m.statusDot,
+			m.statusText,
+		))
+
+	profGroup := container.NewVBox(captionLabel("Profile"),
+		container.NewHBox(m.profileSel, m.defaultMark))
+
+	bar := container.NewBorder(nil, nil,
+		container.NewHBox(camGroup, newVRule(), profGroup),
+		container.NewHBox(m.saveBtn, m.previewBtn, m.moreBtn),
 	)
 
 	m.win.SetContent(container.NewBorder(bar, m.footer, nil, nil, m.tabs))
@@ -390,8 +407,11 @@ func (m *MainWindow) selectDevice(key string) {
 	go m.app.Refresh(key)
 }
 
+// updateStatusDot renders the connection state as dot color + truthful
+// text next to it. No invented states: unknown devices stay neutral.
 func (m *MainWindow) updateStatusDot() {
-	c := color.NRGBA{R: 0x88, G: 0x88, B: 0x88, A: 0xff} // disconnected gray
+	name := theme.ColorNameDisabled
+	text := ""
 
 	for _, d := range m.devices {
 		if d.Identity.Key != m.selected {
@@ -400,14 +420,17 @@ func (m *MainWindow) updateStatusDot() {
 
 		switch {
 		case d.Connected && d.Status == domain.StatusBusy:
-			c = color.NRGBA{R: 0xf0, G: 0xa0, B: 0x20, A: 0xff} // busy amber
+			name, text = theme.ColorNameWarning, "Busy"
 		case d.Connected:
-			c = color.NRGBA{R: 0x30, G: 0xb0, B: 0x50, A: 0xff} // available green
+			name, text = theme.ColorNameSuccess, "Available"
+		default:
+			text = "Disconnected"
 		}
 	}
 
-	m.statusDot.FillColor = c
-	canvas.Refresh(m.statusDot)
+	m.statusDot.SetColor(name)
+	m.statusText.SetText(text)
+	m.statusText.Refresh()
 }
 
 // refreshProfiles reloads the profile list and the default marker.
@@ -423,64 +446,48 @@ func (m *MainWindow) refreshProfiles() {
 	}
 
 	m.profiles = names
-
-	def := m.app.DefaultProfile(m.selected)
-
-	options := make([]string, 0, len(names))
-
-	for _, n := range names {
-		if n == def {
-			options = append(options, "★ "+n+"  (default)")
-		} else {
-			options = append(options, n)
-		}
-	}
-
-	m.profileSel.Options = options
+	m.profileSel.Options = names
 
 	// Keep the selection stable through refreshes; echo-free.
 	if m.profileName != "" {
-		m.profileSel.SetSelected(profileOption(m.profileName, def))
+		m.profileSel.SetSelected(m.profileName)
 	}
 
 	m.profileSel.Refresh()
+	m.updateDefaultMark()
 	m.updateFooter()
 }
 
-func profileOption(name, def string) string {
-	if name == def {
-		return "★ " + name + "  (default)"
+// updateDefaultMark shows the star marker only while the selected profile
+// is the device's default.
+func (m *MainWindow) updateDefaultMark() {
+	if m.profileName != "" && m.profileName == m.app.DefaultProfile(m.selected) {
+		m.defaultMark.Show()
+
+		return
 	}
 
-	return name
+	m.defaultMark.Hide()
 }
 
 // onProfileSelected applies the chosen profile (the picker is an action,
 // not just state). Programmatic selections are echo-guarded.
 func (m *MainWindow) onProfileSelected(option string) {
-	name := profileNameOf(option)
-
-	if name == "" || m.selected == "" {
+	if option == "" || m.selected == "" {
 		return
 	}
 
-	if name == m.profileName {
+	if option == m.profileName {
 		return
 	}
 
-	m.profileName = name
+	m.profileName = option
+	m.updateDefaultMark()
 
 	// Selection IS application (UI_UX profile picker); pending manual
 	// writes are invalidated first.
 	m.resetCoalescer()
-	m.actions.applyNow(m.selected, name)
-}
-
-// profileNameOf strips the default marker decoration.
-func profileNameOf(option string) string {
-	name := strings.TrimPrefix(option, "★ ")
-
-	return strings.TrimSuffix(name, "  (default)")
+	m.actions.applyNow(m.selected, option)
 }
 
 // showOverflow opens the overflow menu dialog.
@@ -490,50 +497,25 @@ func (m *MainWindow) showPreferences() {
 	m.prefsWin.Show()
 }
 
+// showOverflow opens the profile/preference action menu right under the
+// ⋮ button. Tapping an item dismisses the popup automatically.
 func (m *MainWindow) showOverflow() {
-	items := []*widget.Button{
-		widget.NewButton("Apply selected profile now", func() {
-			m.dismissTopOverlay()
+	menu := fyne.NewMenu("",
+		fyne.NewMenuItem("Apply selected profile now", func() {
 			m.resetCoalescer()
 			m.actions.applyNow(m.selected, m.profileName)
 		}),
-		widget.NewButton("Save profile as…", func() {
-			m.dismissTopOverlay()
-			m.actions.saveAs()
-		}),
-		widget.NewButton("Rename profile…", func() {
-			m.dismissTopOverlay()
-			m.actions.rename()
-		}),
-		widget.NewButton("Set selected as default", func() {
-			m.dismissTopOverlay()
-			m.actions.setDefault()
-		}),
-		widget.NewButton("Delete profile…", func() {
-			m.dismissTopOverlay()
-			m.actions.remove()
-		}),
-		widget.NewButton("Preferences…", func() {
-			m.dismissTopOverlay()
-			m.showPreferences()
-		}),
-	}
+		fyne.NewMenuItem("Save profile as…", m.actions.saveAs),
+		fyne.NewMenuItem("Rename profile…", m.actions.rename),
+		fyne.NewMenuItem("Set selected as default", m.actions.setDefault),
+		fyne.NewMenuItem("Delete profile…", m.actions.remove),
+		fyne.NewMenuItem("Preferences…", m.showPreferences),
+	)
 
-	box := container.NewVBox()
+	popup := widget.NewPopUpMenu(menu, m.win.Canvas())
 
-	for _, b := range items {
-		box.Add(b)
-	}
-
-	dialog.ShowCustom("V4Lens", "Close", box, m.win)
-}
-
-func (m *MainWindow) dismissTopOverlay() {
-	ov := m.win.Canvas().Overlays().Top()
-
-	if ov != nil {
-		m.win.Canvas().Overlays().Remove(ov)
-	}
+	pos := fyne.CurrentApp().Driver().AbsolutePositionForObject(m.moreBtn)
+	popup.ShowAtPosition(pos.Add(fyne.NewPos(0, m.moreBtn.Size().Height)))
 }
 
 // ---- snapshots ----
