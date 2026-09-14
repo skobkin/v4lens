@@ -44,6 +44,8 @@ type PreviewWindow struct {
 	statusState *widget.Label
 	statusInfo  *widget.Label
 	overlay     *fyne.Container
+	pill        *pillWidget
+	pillCenter  *fyne.Container
 	overIcon    *widget.Icon
 	overTxt     *widget.Label
 
@@ -94,10 +96,11 @@ func NewPreviewWindow(fa fyne.App, mgr *preview.Manager,
 	w.overTxt = widget.NewLabel("")
 	w.overTxt.TextStyle = fyne.TextStyle{Italic: true}
 
-	pill := newPill(container.NewHBox(w.overIcon, w.overTxt))
+	w.pill = newPill(container.NewHBox(w.overIcon, w.overTxt))
+	w.pillCenter = container.NewCenter(w.pill)
 
 	shade := canvas.NewRectangle(shadeColor())
-	w.overlay = container.NewStack(shade, container.NewCenter(pill))
+	w.overlay = container.NewStack(shade, w.pillCenter)
 	w.overlay.Hide()
 
 	w.win = fa.NewWindow("V4Lens — Preview")
@@ -260,10 +263,14 @@ func (w *PreviewWindow) setStarting() {
 	w.statusInfo.Refresh()
 }
 
-// setOverlay configures and shows the status overlay.
+// setOverlay configures and shows the status overlay. The CENTER container
+// is refreshed explicitly: a child's min-size change never re-runs an
+// ancestor's layout, so without this the capsule keeps the size it had
+// around the empty label.
 func (w *PreviewWindow) setOverlay(icon fyne.Resource, text string) {
 	w.overIcon.SetResource(icon)
 	w.overTxt.SetText(text)
+	w.pillCenter.Refresh()
 	w.overlay.Show()
 }
 

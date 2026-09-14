@@ -215,7 +215,9 @@ func (p *pillWidget) CreateRenderer() fyne.WidgetRenderer {
 	return widget.NewSimpleRenderer(p.stack)
 }
 
-// Refresh re-resolves the capsule color so theme switches re-skin it.
+// Refresh re-resolves the capsule color and re-measures the content: theme
+// switches re-skin it, and content changes (overlay text swap) re-fit it —
+// without this the capsule keeps the size it had around the empty label.
 func (p *pillWidget) Refresh() {
 	if p.bg != nil {
 		p.bg.FillColor = p.current()
