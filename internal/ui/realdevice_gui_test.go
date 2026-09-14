@@ -32,6 +32,7 @@ import (
 	"git.skobk.in/skobkin/v4lens/internal/platform"
 	"git.skobk.in/skobkin/v4lens/internal/preview"
 	"git.skobk.in/skobkin/v4lens/internal/profile"
+	"git.skobk.in/skobkin/v4lens/internal/resources"
 	"git.skobk.in/skobkin/v4lens/internal/v4l"
 )
 
@@ -185,6 +186,7 @@ func guiMain() int {
 
 	guiFa = fyneapp.New()
 	guiFa.Settings().SetTheme(newTheme())
+	guiFa.SetIcon(resources.CameraIcon)
 	// Empty lookup: platform falls back to the real $HOME-based XDG paths.
 	guiMW = NewMainWindow(guiFa, application, platform.ForTest(func(string) string { return "" }, os.Getuid()), guiLogger)
 	guiMW.SetPreviewManager(guiMgr)

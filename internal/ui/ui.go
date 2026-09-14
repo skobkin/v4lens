@@ -8,6 +8,7 @@ import (
 	"git.skobk.in/skobkin/v4lens/internal/app"
 	"git.skobk.in/skobkin/v4lens/internal/platform"
 	"git.skobk.in/skobkin/v4lens/internal/preview"
+	"git.skobk.in/skobkin/v4lens/internal/resources"
 )
 
 // Run builds the Fyne application, wires the main window to the app event
@@ -23,6 +24,10 @@ func Run(a *app.App, previews *preview.Manager, dirs platform.Dirs, background b
 	// V4Lens colors for both variants; the variant itself (dark/light)
 	// follows the system color scheme and live-updates from the desktop.
 	fa.Settings().SetTheme(newTheme())
+
+	// App mark: the driver falls back to it for window title bars and the
+	// system tray icon.
+	fa.SetIcon(resources.CameraIcon)
 
 	m := NewMainWindow(fa, a, dirs, log)
 
