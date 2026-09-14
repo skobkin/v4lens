@@ -125,10 +125,10 @@ func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger
 	m.format = NewFormatTab(m.win)
 
 	m.tabs = container.NewAppTabs(
-		container.NewTabItem("PTZ", m.ptzP.Object()),
-		container.NewTabItem("Image", m.imageP.Object()),
-		container.NewTabItem("Advanced", m.advP.Object()),
-		container.NewTabItem("Format", m.format.Object()),
+		container.NewTabItemWithIcon("PTZ", theme.NewThemedResource(resources.CrosshairIcon), m.ptzP.Object()),
+		container.NewTabItemWithIcon("Image", theme.FileImageIcon(), m.imageP.Object()),
+		container.NewTabItemWithIcon("Advanced", theme.SettingsIcon(), m.advP.Object()),
+		container.NewTabItemWithIcon("Format", theme.DocumentIcon(), m.format.Object()),
 	)
 
 	m.profileStar = widget.NewIcon(theme.NewWarningThemedResource(resources.StarIcon))
