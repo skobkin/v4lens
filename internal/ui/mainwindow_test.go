@@ -187,6 +187,30 @@ func TestMainWindowDevicesAndPanelsPopulate(t *testing.T) {
 	}
 }
 
+// Image sits directly next to Advanced so related tuning groups (white
+// balance) are one tab away.
+func TestMainWindowTabOrder(t *testing.T) {
+	f := newUIFixture(t)
+
+	var got []string
+
+	for _, item := range f.window.tabs.Items {
+		got = append(got, item.Text)
+	}
+
+	want := []string{"PTZ", "Image", "Advanced", "Format"}
+
+	if len(got) != len(want) {
+		t.Fatalf("tabs = %v, want %v", got, want)
+	}
+
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("tabs = %v, want %v", got, want)
+		}
+	}
+}
+
 func TestMainWindowFooterDirtyStates(t *testing.T) {
 	f := newUIFixture(t)
 	m := f.window

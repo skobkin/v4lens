@@ -25,9 +25,10 @@ import (
 
 // MainWindow is the main application shell: context bar (device select +
 // status dot, profile select + default marker, Save/Preview/overflow),
-// the four tabs (Image / PTZ / Advanced / Format) and the state footer.
-// All bus events reach the widgets through dispatched functions — device
-// I/O never runs inside Fyne callbacks.
+// the four tabs (PTZ / Image / Advanced / Format) and the state footer.
+// Image sits directly next to Advanced so related tuning groups (white
+// balance) are one tab away. All bus events reach the widgets through
+// dispatched functions — device I/O never runs inside Fyne callbacks.
 type MainWindow struct {
 	fa  fyne.App
 	app *app.App
@@ -105,8 +106,8 @@ func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger
 	m.format = NewFormatTab(m.win)
 
 	m.tabs = container.NewAppTabs(
-		container.NewTabItem("Image", m.imageP.Object()),
 		container.NewTabItem("PTZ", m.ptzP.Object()),
+		container.NewTabItem("Image", m.imageP.Object()),
 		container.NewTabItem("Advanced", m.advP.Object()),
 		container.NewTabItem("Format", m.format.Object()),
 	)
