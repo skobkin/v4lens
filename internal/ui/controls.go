@@ -516,7 +516,8 @@ func (g disableGroup) Disabled() bool {
 }
 
 // withReason wraps an editor with its name label and the dependency-state
-// reason line.
+// reason line. The name sits in a fixed-width column shared by every row
+// of the tab, so labels and the editors to their right align.
 func withReason(r *baseRenderer, editor fyne.CanvasObject) fyne.CanvasObject {
 	if d, ok := editor.(fyne.Disableable); ok {
 		r.editor = d
@@ -528,9 +529,10 @@ func withReason(r *baseRenderer, editor fyne.CanvasObject) fyne.CanvasObject {
 	r.reason.Importance = widget.WarningImportance
 
 	name := widget.NewLabel(r.desc.Name)
+	name.Wrapping = fyne.TextWrapWord // long driver names wrap instead of widening the column
 
 	return container.NewVBox(
-		container.NewBorder(nil, nil, name, nil, editor),
+		container.NewBorder(nil, nil, withFixedWidth(controlLabelWidth, name), nil, editor),
 		r.reason,
 	)
 }

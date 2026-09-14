@@ -38,6 +38,11 @@ func withFixedWidth(width float32, obj fyne.CanvasObject) fyne.CanvasObject {
 	return container.New(fixedWidthLayout{width: width}, obj)
 }
 
+// controlLabelWidth is the shared control-name column width: comfortable
+// for the longest curated names; longer driver names wrap to a second
+// line. Every row of a tab shares it, so the editor columns align.
+const controlLabelWidth = 200
+
 // spacedVBoxLayout stacks objects full-width with a fixed vertical gap —
 // group cards need more air between them than a plain VBox's theme
 // padding (the padding is fixed at theme construction time).
