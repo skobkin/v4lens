@@ -229,8 +229,8 @@ func TestMainWindowFooterDirtyStates(t *testing.T) {
 
 	m.updateFooter()
 
-	if got := m.footer.Text; !contains(got, "matches device") {
-		t.Fatalf("footer = %q, want matching state", got)
+	if got := m.profileState.Text; !contains(got, "matches device") {
+		t.Fatalf("footer state = %q, want matching state", got)
 	}
 
 	// Device drifts: bump the snapshot brightness.
@@ -238,8 +238,16 @@ func TestMainWindowFooterDirtyStates(t *testing.T) {
 	snap.Values[0x00980900] = domain.ControlValue{ID: 0x00980900, Type: domain.TypeInteger, Int: 9}
 	m.onEvent(snap)
 
-	if got := m.footer.Text; !contains(got, "1 difference(s)") {
-		t.Fatalf("footer = %q, want dirty state", got)
+	if got := m.profileState.Text; !contains(got, "1 difference(s)") {
+		t.Fatalf("footer state = %q, want dirty state", got)
+	}
+
+	if got := m.footerMsg.Text; got != "Camera settings differ from saved profile" {
+		t.Fatalf("footer message = %q, want the dirty warning", got)
+	}
+
+	if !m.warnIcon.Visible() {
+		t.Fatal("dirty state must show the warning icon")
 	}
 }
 
@@ -262,8 +270,8 @@ func TestMainWindowApplyFinishedPartialShowsIssue(t *testing.T) {
 
 	m.onEvent(app.ApplyFinished{Key: fixtureKey, Result: res})
 
-	if !contains(m.footer.Text, "issues") {
-		t.Fatalf("footer = %q, want apply-issue state", m.footer.Text)
+	if !contains(m.footerMsg.Text, "issues") {
+		t.Fatalf("footer message = %q, want apply-issue state", m.footerMsg.Text)
 	}
 }
 
@@ -288,8 +296,8 @@ func TestMainWindowWriteResultUpdatesRenderer(t *testing.T) {
 		t.Fatalf("renderer not refreshed from effective read-back: %v", entry)
 	}
 
-	if contains(m.footer.Text, "1 write(s) in flight") {
-		t.Fatalf("footer = %q, in-flight count not settled", m.footer.Text)
+	if contains(m.footerMsg.Text, "1 write(s) in flight") {
+		t.Fatalf("footer message = %q, in-flight count not settled", m.footerMsg.Text)
 	}
 }
 

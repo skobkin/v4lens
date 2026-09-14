@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/layout"
 	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
@@ -50,7 +51,15 @@ type MainWindow struct {
 	ptzP   *ControlPanel
 	advP   *ControlPanel
 	format *FormatTab
-	footer *widget.Label
+
+	// Footer state bar (spec §7): profile context on the left, the
+	// actionable message or the resting dirty warning on the right.
+	footerBar    *fyne.Container
+	profileStar  *widget.Icon
+	profileTitle *widget.Label
+	profileState *widget.Label
+	warnIcon     *widget.Icon
+	footerMsg    *widget.Label
 
 	actions  *profileActions
 	prefsWin *PreferencesWindow
@@ -122,9 +131,28 @@ func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger
 		container.NewTabItem("Format", m.format.Object()),
 	)
 
-	m.footer = widget.NewLabel("Starting…")
-	m.footer.TextStyle = fyne.TextStyle{Monospace: true}
-	m.footer.Wrapping = fyne.TextWrapWord
+	m.profileStar = widget.NewIcon(theme.NewWarningThemedResource(resources.StarIcon))
+	m.profileStar.Hide()
+
+	m.profileTitle = widget.NewLabel("")
+	m.profileTitle.TextStyle = fyne.TextStyle{Bold: true}
+
+	m.profileState = widget.NewLabel("")
+	m.profileState.Importance = widget.LowImportance
+
+	m.warnIcon = widget.NewIcon(theme.WarningIcon())
+	m.warnIcon.Hide()
+
+	m.footerMsg = widget.NewLabel("Starting…")
+	m.footerMsg.Truncation = fyne.TextTruncateEllipsis
+
+	left := container.NewHBox(m.profileStar, container.NewVBox(m.profileTitle, m.profileState))
+	right := container.NewHBox(m.warnIcon, m.footerMsg)
+
+	m.footerBar = container.NewVBox(
+		widget.NewSeparator(),
+		container.NewHBox(left, layout.NewSpacer(), right),
+	)
 
 	// Two captioned groups (Camera / Profile) with a hairline divider
 	// between them; the actions pin to the right edge.
@@ -145,7 +173,7 @@ func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger
 		container.NewHBox(m.saveBtn, m.previewBtn, m.moreBtn),
 	)
 
-	m.win.SetContent(container.NewBorder(bar, m.footer, nil, nil, m.tabs))
+	m.win.SetContent(container.NewBorder(bar, m.footerBar, nil, nil, m.tabs))
 	m.win.Resize(fyne.NewSize(880, 640))
 
 	m.actions = &profileActions{
@@ -740,40 +768,58 @@ func (m *MainWindow) resetCoalescer() {
 
 // ---- footer ----
 
-// updateFooter renders the truthful state line: device/profile context,
-// in-flight writes, last apply result and the profile dirty state (computed
-// over profile-managed fields only, from effective read-backs).
+// updateFooter renders the state bar. Left: the profile context — star
+// when the profile is the device's default, bold profile name, truthful
+// dirty-state subtext. Right: the actionable truth of the moment wins —
+// the last apply/write message, then in-flight writes, then the resting
+// dirty warning (spec §7).
 func (m *MainWindow) updateFooter() {
-	line := ""
+	switch {
+	case m.selected == "":
+		m.profileTitle.SetText("No device selected")
+		m.profileState.SetText("")
+	case m.profileName == "":
+		m.profileTitle.SetText(m.displayNameOf(m.selected))
+		m.profileState.SetText("No profile selected")
+	default:
+		m.profileTitle.SetText(m.profileName)
 
-	if m.selected != "" {
-		line = m.selected
+		diffs := m.profileDiffs()
 
-		if name := m.profileName; name != "" {
-			diffs := m.profileDiffs()
-
-			switch {
-			case diffs < 0:
-				line += " · profile " + name + ": state unknown"
-			case diffs == 0:
-				line += " · profile " + name + ": matches device"
-			default:
-				line += fmt.Sprintf(" · profile %s: %d difference(s) — Save to capture current state", name, diffs)
-			}
+		switch {
+		case diffs < 0:
+			m.profileState.SetText("Profile state unknown")
+		case diffs == 0:
+			m.profileState.SetText("Profile matches device")
+		default:
+			m.profileState.SetText(fmt.Sprintf("%d difference(s) — Save to capture current state", diffs))
 		}
+	}
+
+	dirty := m.profileName != "" && m.profileDiffs() > 0
+
+	switch {
+	case m.lastMsg != "":
+		m.footerMsg.SetText(m.lastMsg)
+	case m.inflight > 0:
+		m.footerMsg.SetText(fmt.Sprintf("%d write(s) in flight", m.inflight))
+	case dirty:
+		m.footerMsg.SetText("Camera settings differ from saved profile")
+	default:
+		m.footerMsg.SetText("")
+	}
+
+	if dirty && m.lastMsg == "" && m.inflight == 0 {
+		m.warnIcon.Show()
 	} else {
-		line = "No device selected"
+		m.warnIcon.Hide()
 	}
 
-	if m.inflight > 0 {
-		line += fmt.Sprintf(" · %d write(s) in flight", m.inflight)
+	if m.selected != "" && m.profileName != "" && m.profileName == m.app.DefaultProfile(m.selected) {
+		m.profileStar.Show()
+	} else {
+		m.profileStar.Hide()
 	}
-
-	if m.lastMsg != "" {
-		line += " · " + m.lastMsg
-	}
-
-	m.footer.SetText(line)
 }
 
 // profileDiffs counts the profile-managed differences between the selected
