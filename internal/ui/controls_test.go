@@ -398,8 +398,9 @@ func TestControlPanelGroupsAndRegisters(t *testing.T) {
 	}
 
 	// Advanced grouping keeps driver order within class groups and class
-	// groups in first-appearance order: User Controls, Camera Controls,
-	// UVC Vendor.
+	// groups in first-appearance order; the curated white balance control
+	// keeps its own titled group instead of the driver class name:
+	// User Controls, White Balance, Camera Controls, UVC Vendor.
 	var titles []string
 
 	for _, o := range p.box.Objects {
@@ -408,7 +409,7 @@ func TestControlPanelGroupsAndRegisters(t *testing.T) {
 		}
 	}
 
-	want := []string{"User Controls", "Camera Controls", "UVC Vendor"}
+	want := []string{"User Controls", "White Balance", "Camera Controls", "UVC Vendor"}
 
 	if len(titles) != len(want) {
 		t.Fatalf("group titles = %v, want %v", titles, want)

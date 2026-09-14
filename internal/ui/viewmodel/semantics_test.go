@@ -12,16 +12,17 @@ func TestClassifyCuratedControls(t *testing.T) {
 		tab   Tab
 		group string
 	}{
-		{0x00980900, TabImage, GroupImage},        // Brightness
-		{0x00980901, TabImage, GroupImage},        // Contrast
-		{0x0098090c, TabImage, GroupWhiteBalance}, // WB auto
-		{0x0098090e, TabImage, GroupWhiteBalance}, // WB temperature
-		{0x009a0901, TabImage, GroupExposure},     // Auto exposure
-		{0x009a0902, TabImage, GroupExposure},     // Exposure absolute
-		{0x009a090a, TabImage, GroupFocus},        // Focus absolute
-		{0x009a0908, TabPTZ, GroupPTZ},            // Pan absolute
-		{0x009a0909, TabPTZ, GroupPTZ},            // Tilt absolute
-		{0x009a090d, TabPTZ, GroupPTZ},            // Zoom absolute
+		{0x00980900, TabImage, GroupImage},           // Brightness
+		{0x00980901, TabImage, GroupImage},           // Contrast
+		{0x0098090c, TabAdvanced, GroupWhiteBalance}, // WB auto
+		{0x0098090d, TabAdvanced, GroupWhiteBalance}, // Do WB
+		{0x0098090e, TabAdvanced, GroupWhiteBalance}, // WB temperature
+		{0x009a0901, TabImage, GroupExposure},        // Auto exposure
+		{0x009a0902, TabImage, GroupExposure},        // Exposure absolute
+		{0x009a090a, TabImage, GroupFocus},           // Focus absolute
+		{0x009a0908, TabPTZ, GroupPTZ},               // Pan absolute
+		{0x009a0909, TabPTZ, GroupPTZ},               // Tilt absolute
+		{0x009a090d, TabPTZ, GroupPTZ},               // Zoom absolute
 	}
 
 	for _, tc := range cases {

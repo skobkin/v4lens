@@ -26,7 +26,9 @@ func (t Tab) String() string {
 	}
 }
 
-// Semantic groups inside the Image tab, in display order.
+// Semantic group titles. Exposure/Image/Focus are ordered groups inside
+// the Image tab (GroupOrder); White Balance is a titled group inside
+// Advanced; PTZ names the PTZ tab's group.
 const (
 	GroupExposure     = "Exposure"
 	GroupImage        = "Image"
@@ -56,10 +58,12 @@ var curated = map[uint32]semanticEntry{
 	0x00980912: {tab: TabImage, group: GroupImage, order: 60}, // Backlight compensation
 	0x00980918: {tab: TabImage, group: GroupImage, order: 70}, // Gamma
 
-	// User class: white balance.
-	0x0098090c: {tab: TabImage, group: GroupWhiteBalance, order: 10}, // Auto white balance
-	0x0098090d: {tab: TabImage, group: GroupWhiteBalance, order: 20}, // Do white balance
-	0x0098090e: {tab: TabImage, group: GroupWhiteBalance, order: 30}, // White balance temperature
+	// User class: white balance. The whole group lives in Advanced: the
+	// automatic toggle gates the temperature slider, so the pair must sit
+	// together (splitting it across tabs hid the dependency).
+	0x0098090c: {tab: TabAdvanced, group: GroupWhiteBalance, order: 10}, // Auto white balance
+	0x0098090d: {tab: TabAdvanced, group: GroupWhiteBalance, order: 20}, // Do white balance
+	0x0098090e: {tab: TabAdvanced, group: GroupWhiteBalance, order: 30}, // White balance temperature
 
 	// Camera class: exposure + focus.
 	0x009a0901: {tab: TabImage, group: GroupExposure, order: 10}, // Auto exposure (mode menu)
@@ -86,6 +90,9 @@ type Semantics struct {
 	Tab   Tab
 	Group string
 	Order int
+	// Curated reports that the placement came from the curated table
+	// rather than the class-based Advanced fallback.
+	Curated bool
 }
 
 // Classify maps a descriptor to its tab/group placement. Unlisted controls
@@ -93,7 +100,7 @@ type Semantics struct {
 // the pure table stays free of runtime state).
 func Classify(d domain.ControlDescriptor) Semantics {
 	if e, ok := curated[d.ID]; ok {
-		return Semantics{Tab: e.tab, Group: e.group, Order: e.order}
+		return Semantics{Tab: e.tab, Group: e.group, Order: e.order, Curated: true}
 	}
 
 	return Semantics{Tab: TabAdvanced, Group: advancedGroupOf(d)}
@@ -109,10 +116,10 @@ func advancedGroupOf(d domain.ControlDescriptor) string {
 	return "Other"
 }
 
-// GroupOrder is the Image-tab group display order.
+// GroupOrder is the Image-tab group display order (white balance lives in
+// Advanced now).
 var GroupOrder = map[string]int{
-	GroupExposure:     10,
-	GroupImage:        20,
-	GroupWhiteBalance: 30,
-	GroupFocus:        40,
+	GroupExposure: 10,
+	GroupImage:    20,
+	GroupFocus:    40,
 }

@@ -114,12 +114,16 @@ func groupControls(descs []domain.ControlDescriptor, advanced bool) []controlGro
 
 	for _, d := range descs {
 		if advanced {
-			// Advanced groups by driver control class in first-appearance
-			// (driver) order — never by curated semantics.
+			// Unlisted controls group by driver control class in
+			// first-appearance (driver) order. Curated controls routed here
+			// (white balance) keep their semantic group title instead, so
+			// the gating toggle and the gated control stay together.
 			group := d.ClassName
 
-			if group == "" {
-				group = viewmodel.Classify(d).Group
+			if sem := viewmodel.Classify(d); sem.Curated && sem.Tab == viewmodel.TabAdvanced {
+				group = sem.Group
+			} else if group == "" {
+				group = sem.Group
 			}
 
 			b := bucketFor(group, len(buckets))
