@@ -528,8 +528,14 @@ func inputOptions(vm *viewmodel.FormatVM) []string {
 	return out
 }
 
+// inputLabel renders the name users pick by; the numeric index is internal
+// bookkeeping, not something to confront them with.
 func inputLabel(in domain.InputInfo) string {
-	return fmt.Sprintf("%d: %s", in.Index, in.Name)
+	if in.Name != "" {
+		return in.Name
+	}
+
+	return "Input " + strconv.FormatUint(uint64(in.Index), 10)
 }
 
 func inputLabelFor(vm *viewmodel.FormatVM, idx uint32) string {
@@ -539,7 +545,7 @@ func inputLabelFor(vm *viewmodel.FormatVM, idx uint32) string {
 		}
 	}
 
-	return strconv.FormatUint(uint64(idx), 10)
+	return "Input " + strconv.FormatUint(uint64(idx), 10)
 }
 
 func formatOptions(vm *viewmodel.FormatVM) []string {
