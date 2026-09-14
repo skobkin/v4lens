@@ -8,6 +8,7 @@ import (
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 
 	"git.skobk.in/skobkin/v4lens/internal/domain"
@@ -33,9 +34,10 @@ type FormatTab struct {
 	// Dispatch defaults to fyne.Do; tests inject a synchronous runner.
 	Dispatch func(fn func())
 
-	win   fyne.Window
-	box   *fyne.Container
-	empty *widget.Label
+	win      fyne.Window
+	box      *fyne.Container
+	scroller fyne.CanvasObject // nil when constructed directly in tests
+	empty    *widget.Label
 
 	vm *viewmodel.FormatVM
 
@@ -59,17 +61,24 @@ type FormatTab struct {
 func NewFormatTab(win fyne.Window) *FormatTab {
 	t := &FormatTab{
 		win:   win,
-		box:   container.NewVBox(),
+		box:   newSpacedVBox(cardGap),
 		empty: widget.NewLabel("No device selected."),
 	}
 
 	t.box.Add(t.empty)
+
+	// The staged card scrolls, like the control panels do.
+	t.scroller = container.NewVScroll(container.NewPadded(t.box))
 
 	return t
 }
 
 // Object returns the tab canvas object.
 func (t *FormatTab) Object() fyne.CanvasObject {
+	if t.scroller != nil {
+		return t.scroller
+	}
+
 	return t.box
 }
 
@@ -136,8 +145,12 @@ func (t *FormatTab) rebuild() {
 
 	t.status = widget.NewLabel("")
 	t.current = widget.NewLabel("")
-	t.applyBtn = widget.NewButton("Apply", t.onApply)
-	t.revertBtn = widget.NewButton("Revert", t.onRevert)
+
+	// Spec wording (UI_UX §5): "Apply format settings" / "Revert"; the
+	// apply is the card's primary action.
+	t.applyBtn = widget.NewButtonWithIcon("Apply format settings", theme.ConfirmIcon(), t.onApply)
+	t.applyBtn.Importance = widget.HighImportance
+	t.revertBtn = widget.NewButtonWithIcon("Revert", theme.ViewRestoreIcon(), t.onRevert)
 	t.applyBtn.Disable()
 	t.revertBtn.Disable()
 
@@ -151,27 +164,29 @@ func (t *FormatTab) rebuild() {
 
 	setEntries(t.wEntry, t.hEntry, vm.Active.Width, vm.Active.Height)
 
-	// Assemble: the frame-rate row exists ONLY when the device supports
-	// configurable frame intervals.
+	// Assemble on the shared label column: the frame-rate row exists ONLY
+	// when the device supports configurable frame intervals.
+	row := func(label string, editor fyne.CanvasObject) fyne.CanvasObject {
+		return container.NewBorder(nil, nil, withFixedWidth(controlLabelWidth, widget.NewLabel(label)), nil, editor)
+	}
+
 	rows := []fyne.CanvasObject{
-		container.NewHBox(widget.NewLabel("Input"), t.inputSel),
-		container.NewHBox(widget.NewLabel("Pixel format"), t.formatSel),
+		row("Input", t.inputSel),
+		row("Pixel format", t.formatSel),
 	}
 
 	if hasDiscrete(vm) {
-		rows = append(rows, container.NewHBox(widget.NewLabel("Resolution"), t.sizeSel))
+		rows = append(rows, row("Resolution", t.sizeSel))
 	}
 
 	rows = append(rows,
-		container.NewHBox(widget.NewLabel("Width"), withFixedWidth(80, t.wEntry),
-			widget.NewLabel("Height"), withFixedWidth(80, t.hEntry)),
+		row("Width", withFixedWidth(80, t.wEntry)),
+		row("Height", withFixedWidth(80, t.hEntry)),
 	)
 
 	if vm.TimePerFrame {
-		rows = append(rows,
-			container.NewHBox(widget.NewLabel("Frame rate"), withFixedWidth(170, t.fpsSel),
-				withFixedWidth(130, t.fpsEntry)),
-		)
+		rows = append(rows, row("Frame rate",
+			container.NewHBox(withFixedWidth(170, t.fpsSel), withFixedWidth(130, t.fpsEntry))))
 	}
 
 	rows = append(rows,
@@ -180,7 +195,7 @@ func (t *FormatTab) rebuild() {
 		container.NewHBox(t.applyBtn, t.revertBtn),
 	)
 
-	t.box.Objects = rows
+	t.box.Objects = []fyne.CanvasObject{newCard(theme.DocumentIcon(), "Format", rows)}
 
 	t.loadIntervals()
 	t.refresh()
