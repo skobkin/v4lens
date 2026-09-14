@@ -443,7 +443,9 @@ func buildIntegerSlider(r *baseRenderer) fyne.CanvasObject {
 		r.commit(domain.NewIntValue(r.desc.ID, r.desc.Type, norm))
 	}
 
-	return withReason(r, container.NewBorder(nil, nil, nil, entry, slider))
+	// Fixed-width entry: wide enough for practical values, so no inner
+	// scrollbar and every row's entry shares the same edges.
+	return withReason(r, container.NewBorder(nil, nil, nil, withFixedWidth(76, entry), slider))
 }
 
 // buildIntegerEntry renders an awkward-range integer as a plain entry.

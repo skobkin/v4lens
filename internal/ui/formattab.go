@@ -163,12 +163,14 @@ func (t *FormatTab) rebuild() {
 	}
 
 	rows = append(rows,
-		container.NewHBox(widget.NewLabel("Width"), t.wEntry, widget.NewLabel("Height"), t.hEntry),
+		container.NewHBox(widget.NewLabel("Width"), withFixedWidth(80, t.wEntry),
+			widget.NewLabel("Height"), withFixedWidth(80, t.hEntry)),
 	)
 
 	if vm.TimePerFrame {
 		rows = append(rows,
-			container.NewHBox(widget.NewLabel("Frame rate"), t.fpsSel, t.fpsEntry),
+			container.NewHBox(widget.NewLabel("Frame rate"), withFixedWidth(170, t.fpsSel),
+				withFixedWidth(130, t.fpsEntry)),
 		)
 	}
 

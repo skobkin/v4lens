@@ -117,7 +117,9 @@ func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger
 
 	bar := container.NewHBox(
 		m.statusDot,
-		m.deviceSel,
+		// Fixed width so the camera name is readable instead of clipped to
+		// the select's minimum size.
+		withFixedWidth(260, m.deviceSel),
 		widget.NewLabel("Profile:"),
 		m.profileSel,
 		m.saveBtn,
