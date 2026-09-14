@@ -207,3 +207,14 @@ func TestScannerTriggerScan(t *testing.T) {
 		t.Fatalf("triggered scan did not report removal: %+v", events)
 	}
 }
+
+// Shutdown paths can run twice (tray quit, then the deferred teardown in
+// main): a second Stop must be a no-op, not a panic on the stop channel.
+func TestScannerStopIsIdempotent(t *testing.T) {
+	roots := fixture(t)
+	sc := NewScanner(roots, slog.New(slog.DiscardHandler), 20*time.Millisecond)
+	sc.Start()
+
+	sc.Stop()
+	sc.Stop() // must not panic ("close of closed channel")
+}

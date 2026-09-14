@@ -49,7 +49,8 @@ type Scanner struct {
 	known    map[string]bool
 	everSeen map[string]bool
 
-	wg sync.WaitGroup
+	stopOnce sync.Once
+	wg       sync.WaitGroup
 }
 
 // NewScanner builds a scanner; interval <= 0 means the documented 2s poll.
@@ -86,9 +87,10 @@ func (sc *Scanner) Start() {
 	go sc.loop()
 }
 
-// Stop ends polling and waits for the goroutine.
+// Stop ends polling and waits for the goroutine. Idempotent: shutdown
+// paths may run twice (explicit quit plus the deferred teardown in main).
 func (sc *Scanner) Stop() {
-	close(sc.stop)
+	sc.stopOnce.Do(func() { close(sc.stop) })
 	sc.wg.Wait()
 }
 
