@@ -296,6 +296,42 @@ func (t *FormatTab) stageInterval(iv domain.FrameInterval) {
 	}
 
 	t.refresh()
+	t.syncFPSSelection()
+}
+
+// syncFPSSelection reflects the staged interval (the active one while the
+// tab is clean) in the rate picker — the placeholder must never masquerade
+// as the current frame rate. Off-list values (typed exact intervals) clear
+// the picker back to the placeholder instead of showing a stale rate.
+func (t *FormatTab) syncFPSSelection() {
+	if t.vm == nil || t.fpsSel == nil {
+		return
+	}
+
+	iv := t.vm.Staged().Interval
+	if iv == nil {
+		return
+	}
+
+	if opt, ok := fpsOptionFor(t.fpsSel.Options, *iv); ok {
+		was := t.echo
+		t.echo = true
+
+		t.fpsSel.SetSelected(opt)
+
+		t.echo = was
+
+		return
+	}
+
+	if cur, ok := intervalForLabel(t.fpsSel.Selected); ok && cur == *iv {
+		return
+	}
+
+	if t.fpsSel.SelectedIndex() >= 0 {
+		t.fpsSel.Selected = ""
+		t.fpsSel.Refresh()
+	}
 }
 
 // syncStagedSize updates the size picker/entries to the staged size.
@@ -415,6 +451,8 @@ func (t *FormatTab) loadIntervals() {
 
 			t.fpsSel.Options = opts
 			t.fpsSel.Refresh()
+
+			t.syncFPSSelection()
 		})
 	}()
 }
@@ -488,6 +526,17 @@ func intervalForLabel(label string) (domain.FrameInterval, bool) {
 	}
 
 	return domain.FrameInterval{}, false
+}
+
+// fpsOptionFor finds the picker label whose exact rational equals iv.
+func fpsOptionFor(opts []string, iv domain.FrameInterval) (string, bool) {
+	for _, opt := range opts {
+		if m, ok := intervalForLabel(opt); ok && m == iv {
+			return opt, true
+		}
+	}
+
+	return "", false
 }
 
 // parseInterval parses an exact rational "num/den" (0/0 is never valid).
