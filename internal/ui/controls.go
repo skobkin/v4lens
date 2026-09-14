@@ -410,9 +410,10 @@ func buildIntegerSlider(r *baseRenderer) fyne.CanvasObject {
 		r.commit(domain.NewIntValue(r.desc.ID, r.desc.Type, int64(f)))
 	}
 
-	// The editor is wrapped in a layout container; register the slider as
-	// the disableable target explicitly.
-	r.editor = slider
+	// The editor is wrapped in a layout container; register BOTH the slider
+	// and the entry as disableable targets explicitly — an inactive control
+	// must not leave a freely editable entry next to a dead slider.
+	r.editor = disableGroup{slider, entry}
 
 	entry.OnSubmitted = func(s string) {
 		if r.echo {
@@ -483,6 +484,33 @@ func buildIntegerEntry(r *baseRenderer) fyne.CanvasObject {
 	}
 
 	return withReason(r, entry)
+}
+
+// disableGroup forwards enable/disable state to several widgets — used
+// where one editor row holds more than one interactive widget (the
+// slider+entry pair).
+type disableGroup []fyne.Disableable
+
+func (g disableGroup) Disable() {
+	for _, d := range g {
+		d.Disable()
+	}
+}
+
+func (g disableGroup) Enable() {
+	for _, d := range g {
+		d.Enable()
+	}
+}
+
+func (g disableGroup) Disabled() bool {
+	for _, d := range g {
+		if d.Disabled() {
+			return true
+		}
+	}
+
+	return false
 }
 
 // withReason wraps an editor with its name label and the dependency-state

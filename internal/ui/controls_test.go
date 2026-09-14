@@ -244,6 +244,43 @@ func TestIntegerSliderRendererBidirectional(t *testing.T) {
 	}
 }
 
+// An INACTIVE control disables the whole editor row: the value entry next
+// to the slider must not stay freely editable (regression: only the slider
+// was registered as the disableable target).
+func TestInactiveSliderDisablesEntry(t *testing.T) {
+	newTestEnv(t)
+
+	r := newControlRenderer(
+		domain.ControlDescriptor{
+			ID: 0x009a0902, Name: "Exposure Time, Absolute",
+			Type: domain.TypeInteger, Min: 0, Max: 500, Step: 1,
+		},
+		&domain.ControlValue{ID: 0x009a0902, Type: domain.TypeInteger, Int: 156},
+		Hooks{},
+	)
+
+	obj := r.Object()
+
+	slider := find[*widget.Slider](obj)
+	entry := find[*widget.Entry](obj)
+
+	if slider == nil || entry == nil {
+		t.Fatal("slider/entry missing")
+	}
+
+	r.SetDisabled(true, "inactive — enable its prerequisite control first")
+
+	if !entry.Disabled() || !slider.Disabled() {
+		t.Fatalf("inactive control editable: entry=%v slider=%v", entry.Disabled(), slider.Disabled())
+	}
+
+	r.SetDisabled(false, "")
+
+	if entry.Disabled() || slider.Disabled() {
+		t.Fatal("controls not re-enabled after the dependency cleared")
+	}
+}
+
 func TestIntegerEntryRendererNormalizes(t *testing.T) {
 	newTestEnv(t)
 
