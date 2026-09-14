@@ -14,9 +14,12 @@ func TestClassifyCuratedControls(t *testing.T) {
 	}{
 		{0x00980900, TabImage, GroupImage},           // Brightness
 		{0x00980901, TabImage, GroupImage},           // Contrast
+		{0x0098091b, TabImage, GroupImage},           // Sharpness
+		{0x0098091c, TabImage, GroupImage},           // Backlight compensation
+		{0x00980918, TabImage, GroupImage},           // Power line frequency
 		{0x0098090c, TabAdvanced, GroupWhiteBalance}, // WB auto
 		{0x0098090d, TabAdvanced, GroupWhiteBalance}, // Do WB
-		{0x0098090e, TabAdvanced, GroupWhiteBalance}, // WB temperature
+		{0x0098091a, TabAdvanced, GroupWhiteBalance}, // WB temperature
 		{0x009a0901, TabImage, GroupExposure},        // Auto exposure
 		{0x009a0902, TabImage, GroupExposure},        // Exposure absolute
 		{0x009a090a, TabImage, GroupFocus},           // Focus absolute

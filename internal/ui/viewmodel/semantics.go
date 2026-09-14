@@ -49,21 +49,22 @@ type semanticEntry struct {
 // curated lists the standard V4L2 control IDs with a stable semantic home
 // (linux/videodev2.h uapi IDs).
 var curated = map[uint32]semanticEntry{
-	// User class: image tuning.
+	// User class: image tuning (linux/v4l2-controls.h V4L2_CID_* values).
 	0x00980900: {tab: TabImage, group: GroupImage, order: 10}, // Brightness
 	0x00980901: {tab: TabImage, group: GroupImage, order: 20}, // Contrast
 	0x00980902: {tab: TabImage, group: GroupImage, order: 30}, // Saturation
 	0x00980903: {tab: TabImage, group: GroupImage, order: 40}, // Hue
-	0x00980911: {tab: TabImage, group: GroupImage, order: 50}, // Sharpness
-	0x00980912: {tab: TabImage, group: GroupImage, order: 60}, // Backlight compensation
-	0x00980918: {tab: TabImage, group: GroupImage, order: 70}, // Gamma
+	0x0098091b: {tab: TabImage, group: GroupImage, order: 50}, // Sharpness
+	0x0098091c: {tab: TabImage, group: GroupImage, order: 60}, // Backlight compensation
+	0x00980910: {tab: TabImage, group: GroupImage, order: 70}, // Gamma
+	0x00980918: {tab: TabImage, group: GroupImage, order: 80}, // Power line frequency
 
 	// User class: white balance. The whole group lives in Advanced: the
 	// automatic toggle gates the temperature slider, so the pair must sit
 	// together (splitting it across tabs hid the dependency).
 	0x0098090c: {tab: TabAdvanced, group: GroupWhiteBalance, order: 10}, // Auto white balance
 	0x0098090d: {tab: TabAdvanced, group: GroupWhiteBalance, order: 20}, // Do white balance
-	0x0098090e: {tab: TabAdvanced, group: GroupWhiteBalance, order: 30}, // White balance temperature
+	0x0098091a: {tab: TabAdvanced, group: GroupWhiteBalance, order: 30}, // White balance temperature
 
 	// Camera class: exposure + focus.
 	0x009a0901: {tab: TabImage, group: GroupExposure, order: 10}, // Auto exposure (mode menu)
