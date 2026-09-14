@@ -74,3 +74,57 @@ Rationale: the advisory gate is "comfortably under ~33 ms/frame at 1080p"; every
 **fd ownership / external owners.** While an fd was actively streaming (vb2 queue cycling), `S_FMT` from another fd returned **EBUSY** and the running stream was untouched; `TRY_FMT` still succeeded (validation is always available). With **no** stream active, `S_FMT` from any fd (including a short-lived one that then closed) mutated the device-global format — uvcvideo has no per-fd format isolation. This validates the plan: control fd stays panel-mode (`TRY_FMT` only), own-stream reconfiguration rides the stream fd, detached applies use a short-lived fd, and external-owner `EBUSY` is a real expected outcome to classify, not a guess.
 
 **Decoder correctness discipline.** The libyuv cross-check exposed a pure-Go UYVY bug (Y read from the chroma byte phase — UYVY is `U Y0 V Y1`, a phase flip vs YUYV, not a chroma swap); after the fix the sampled |Y diff| on a real frame is 0. Synthetic planted-value phase tests (padded stride included) are now part of the probe and become mandatory golden tests for the Phase 5 decoders. Note the first YUYV-benchmarked capture negotiated UYVY — benchmark names say YUYV but the measured format is UYVY.
+
+## 2026-09-14 — D014 — Phase 7 real-device verification: defects found & fixed, device quirks, live numbers
+
+Findings from the Phase 7 verification pass (real-device suite under `-race` and
+native, real-GUI scripted sequence, live-desktop lifecycle checks). Machine
+identifiers are redacted here; the raw evidence lives in the test logs only.
+
+**Defects found by verification and fixed (all covered by regression tests or
+the integration suite):**
+
+1. **Data race in `v4l.Stream.Stop`.** Stop closed the frame/error channels
+   while the consume goroutine could still be sending (close-vs-send race,
+   caught by `-race` against the live camera). Fix: sender-owned closure —
+   `consume()` closes both channels when it exits; `Stop` cancels the context,
+   stops/closes the device, and waits for consume. Never close a channel a
+   goroutine may still send on.
+2. **UI missed initial discovery.** The window subscribed to the bus after
+   `app.Start()` had already published initial-discovery events (the scanner
+   publishes only on later changes), leaving the UI at "No device" forever on
+   quiet buses. Fix: start the application layer after the UI subscription
+   exists, and pull the current device list once after subscribing
+   (`MainWindow.Start`). Pull-after-subscribe is the general guard against
+   lost-initial-event ordering bugs.
+3. **Stale preview publications after suspend.** The render loop did not know
+   its generation and could emit a superseded `Streaming` event after the
+   `Frozen` event (observed as "resumed with the old format" in a test). Fix:
+   renderLoop carries its generation and bails before publishing when
+   superseded; consumers identify a resumed generation by layout.
+4. **Main-window close quit the process** (acceptance deviation). Close now
+   hides the window and releases streaming lanes; the process stays resident
+   (tray Quit / SIGTERM exit). Verified live: Alt+F4 → process alive; second
+   launch → activation accepted → window raised; Quit → single clean shutdown.
+
+**Device quirks (PW513 / uvcvideo, this firmware):**
+
+- `auto_exposure` advertises menu range 0..3 but **accepts only the two
+  QUERYMENU-enumerated items** (0 = Auto, 2 = Shutter Priority); 1 and 3 return
+  `EINVAL` even via `v4l2-ctl`. QUERYMENU-based expansion with hole tolerance
+  (implemented in the backend) is therefore authoritative for UI choices —
+  the advertised min/max range is not.
+- `exposure_time_absolute` remains INACTIVE even in Shutter Priority on this
+  firmware; the exposure pair cannot demonstrate an INACTIVE→active unlock
+  here. The white-balance pair behaves classically (WB-auto off clears
+  INACTIVE on WB-temperature) and is the scripted unlock case. INACTIVE
+  controls reject writes with EACCES — restore sequences must order dependent
+  writes before the gating control and tolerate INACTIVE-blocked restores.
+- Live 1080p decode re-measurement (native, decode-only): MJPG ≈ 16.6 ms/frame,
+  UYVY ≈ 2.2–2.3 ms/frame, zero decode errors — consistent with D013 and well
+  inside the ~33 ms render budget. Under the race detector the same paths slow
+  10–30×, so wall-time gates in tests are asserted only in native runs
+  (`raceEnabled` build-tag constants).
+- External-owner behavior re-confirmed in the scripted suite: while an external
+  `v4l2-ctl --stream-mmap` ran, both a detached reconfigure and our own stream
+  open returned EBUSY, and the external stream finished undisturbed.

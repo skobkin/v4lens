@@ -132,9 +132,10 @@ func run() error {
 		}()
 	}
 
-	application.Start()
 	defer application.Stop()
 
+	// ui.Run subscribes the window to the bus and starts the application
+	// layer afterwards, so initial discovery events reach the UI.
 	ui.Run(application, previews, dirs, *background, logger)
 
 	return nil

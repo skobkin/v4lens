@@ -288,7 +288,7 @@ func (p *Pipeline) run(ctx context.Context, gen int, stop chan struct{}, cfg dom
 
 	go func() {
 		defer p.wg.Done()
-		p.renderLoop(stop)
+		p.renderLoop(gen, stop)
 	}()
 }
 
@@ -396,7 +396,9 @@ func (p *Pipeline) isStopped() bool {
 }
 
 // renderLoop republishes the newest frame at the render ceiling (~30 fps).
-func (p *Pipeline) renderLoop(stop chan struct{}) {
+// The generation check keeps a tick already in flight when its generation
+// is suspended from emitting a stale Streaming event after the Frozen one.
+func (p *Pipeline) renderLoop(gen int, stop chan struct{}) {
 	ticker := time.NewTicker(p.renderEvery)
 	defer ticker.Stop()
 
@@ -411,6 +413,14 @@ func (p *Pipeline) renderLoop(stop chan struct{}) {
 
 			return
 		case <-ticker.C:
+			p.mu.Lock()
+			stale := gen != p.gen
+			p.mu.Unlock()
+
+			if stale {
+				return
+			}
+
 			pf := p.latest.Load()
 
 			if pf == nil || pf.seq == lastSeq {

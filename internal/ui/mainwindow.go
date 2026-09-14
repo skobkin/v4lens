@@ -160,7 +160,10 @@ func (m *MainWindow) Show() {
 }
 
 // Start subscribes to the app event bus, pumps events into the UI and
-// installs the system tray menu.
+// installs the system tray menu. After subscribing it pulls the current
+// device list once: the initial discovery may have run (and published its
+// DevicesChanged) before this subscription existed, and the scanner only
+// publishes on later changes.
 func (m *MainWindow) Start() {
 	ch, unsub := m.app.Bus().Subscribe()
 	m.unsub = unsub
@@ -171,6 +174,10 @@ func (m *MainWindow) Start() {
 			m.dispatch(func() { m.onEvent(ev) })
 		}
 	}()
+
+	if devs := m.app.Devices(); len(devs) > 0 {
+		m.dispatch(func() { m.onDevicesChanged(app.DevicesChanged{Devices: devs}) })
+	}
 
 	m.setupTray()
 }
@@ -185,15 +192,14 @@ func (m *MainWindow) dispatch(fn func()) {
 	fyne.Do(fn)
 }
 
+// onClose runs when the main window is closed. The application stays
+// resident in the tray: the window is hidden and its streaming lanes are
+// released, but the process keeps running.
 func (m *MainWindow) onClose() {
-	if m.unsub != nil {
-		m.unsub()
-	}
-
 	m.stopCoalescer()
 
-	// Stop every preview pipeline synchronously before the device sessions
-	// go away underneath them.
+	// Stop every preview pipeline synchronously before anything else
+	// touches the device.
 	if m.preview != nil {
 		m.preview.StopAll()
 	}
@@ -201,6 +207,17 @@ func (m *MainWindow) onClose() {
 	if m.previewWin != nil {
 		m.previewWin.shutdown()
 	}
+
+	m.win.Hide()
+}
+
+// onQuit tears the whole application down (tray Quit action).
+func (m *MainWindow) onQuit() {
+	if m.unsub != nil {
+		m.unsub()
+	}
+
+	m.onClose()
 
 	m.app.Stop()
 	m.fa.Quit()

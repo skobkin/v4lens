@@ -59,7 +59,7 @@ func (m *MainWindow) buildTrayMenu() *fyne.Menu {
 		m.buildTrayAutostartItem(),
 		m.buildTrayApplyOnStartItem(),
 		fyne.NewMenuItem("Preferences…", m.showPreferences),
-		fyne.NewMenuItem("Quit", m.onClose),
+		fyne.NewMenuItem("Quit", m.onQuit),
 	)
 
 	return fyne.NewMenu("", items...)

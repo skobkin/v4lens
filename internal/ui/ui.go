@@ -13,8 +13,10 @@ import (
 // Run builds the Fyne application, wires the main window to the app event
 // bus, attaches the preview manager (which also serves as the apply
 // engine's StreamOwner), installs the tray and blocks until the app
-// quits. With background=true the main window stays hidden (tray-only
-// start, `--background`); activation reveals it.
+// quits. The application layer is started here (after the window's bus
+// subscription exists, so the initial discovery events are seen) — with
+// background=true the main window stays hidden (tray-only start,
+// `--background`); activation reveals it.
 func Run(a *app.App, previews *preview.Manager, dirs platform.Dirs, background bool, log *slog.Logger) {
 	fa := fyneapp.New()
 
@@ -30,6 +32,10 @@ func Run(a *app.App, previews *preview.Manager, dirs platform.Dirs, background b
 
 	m.background = background
 	m.Start()
+
+	// Start discovery only after the bus subscription above: the initial
+	// scan publishes its events immediately.
+	a.Start()
 
 	fa.Run()
 

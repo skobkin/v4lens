@@ -31,6 +31,7 @@ type Stream struct {
 	cancel   context.CancelFunc
 	doneOnce sync.Once
 	doneCh   <-chan struct{}
+	wg       sync.WaitGroup
 
 	stopMu  sync.Mutex
 	stopped bool
@@ -116,6 +117,8 @@ func (h *Handle) OpenStream(ctx context.Context, cfg device.StreamConfig) (devic
 		return nil, fmt.Errorf("stream start: %w", err)
 	}
 
+	s.wg.Add(1)
+
 	go s.consume()
 
 	return s, nil
@@ -124,6 +127,13 @@ func (h *Handle) OpenStream(ctx context.Context, cfg device.StreamConfig) (devic
 // consume copies frames (copy-then-Release) and publishes them with a
 // bounded drop-when-full policy so the capture loop never blocks on the UI.
 func (s *Stream) consume() {
+	defer s.wg.Done()
+
+	// Sender-owned channel closure: consume is the only sender on both
+	// channels, so closing them here (never in Stop) cannot race a send.
+	defer close(s.errCh)
+	defer close(s.frames)
+
 	frames := s.dev.GetFrames()
 	errs := s.dev.GetError()
 
@@ -183,7 +193,8 @@ func (s *Stream) Frames() <-chan domain.Frame {
 	return s.frames
 }
 
-// Err returns the error channel (first error wins; closed by Stop).
+// Err returns the error channel (first error wins; closed when the
+// stream's consume loop ends, including on Stop).
 func (s *Stream) Err() <-chan error {
 	return s.errCh
 }
@@ -207,8 +218,10 @@ func (s *Stream) Stop() error {
 		s.stopErr = fmt.Errorf("stream close: %w", err)
 	}
 
-	close(s.frames)
-	close(s.errCh)
+	// consume exits on the cancelled context (or closed driver channels)
+	// and closes the frame/error channels itself; wait so no send is still
+	// in flight when Stop returns.
+	s.wg.Wait()
 
 	return s.stopErr
 }
