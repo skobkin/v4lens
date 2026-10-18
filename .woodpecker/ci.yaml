@@ -22,36 +22,40 @@ steps:
 
   lint:
     image: golang:1.27-alpine
-    environment:
-      CACHE_ROOT: "$PWD/.ci-cache"
-      GOMODCACHE: "$PWD/.ci-cache/gomod"
-      GOCACHE: "$PWD/.ci-cache/gobuild"
-      GOPATH: "$PWD/.ci-cache/gopath"
-      GOLANGCI_LINT_CACHE: "$PWD/.ci-cache/golangci"
     commands:
+      # Cache dirs are exported in the shell, not the environment block:
+      # Woodpecker does not expand $PWD there, and Go rejects the literal
+      # relative "$PWD/..." GOPATH.
+      - export CACHE_ROOT="$PWD/.ci-cache"
+      - export GOMODCACHE="$CACHE_ROOT/gomod"
+      - export GOCACHE="$CACHE_ROOT/gobuild"
+      - export GOPATH="$CACHE_ROOT/gopath"
+      - export GOLANGCI_LINT_CACHE="$CACHE_ROOT/golangci"
+      - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin" "$GOLANGCI_LINT_CACHE"
       - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      - export PATH="$GOPATH/bin:$PATH"
       - go install github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.13.2
-      - /root/go/bin/golangci-lint run ./...
+      - golangci-lint run ./...
 
   vet:
     image: golang:1.27-alpine
-    environment:
-      CACHE_ROOT: "$PWD/.ci-cache"
-      GOMODCACHE: "$PWD/.ci-cache/gomod"
-      GOCACHE: "$PWD/.ci-cache/gobuild"
-      GOPATH: "$PWD/.ci-cache/gopath"
     commands:
+      - export CACHE_ROOT="$PWD/.ci-cache"
+      - export GOMODCACHE="$CACHE_ROOT/gomod"
+      - export GOCACHE="$CACHE_ROOT/gobuild"
+      - export GOPATH="$CACHE_ROOT/gopath"
+      - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin"
       - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
       - go vet ./...
 
   test:
     image: golang:1.27-alpine
-    environment:
-      CACHE_ROOT: "$PWD/.ci-cache"
-      GOMODCACHE: "$PWD/.ci-cache/gomod"
-      GOCACHE: "$PWD/.ci-cache/gobuild"
-      GOPATH: "$PWD/.ci-cache/gopath"
     commands:
+      - export CACHE_ROOT="$PWD/.ci-cache"
+      - export GOMODCACHE="$CACHE_ROOT/gomod"
+      - export GOCACHE="$CACHE_ROOT/gobuild"
+      - export GOPATH="$CACHE_ROOT/gopath"
+      - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin"
       - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
       # Integration tests stay behind the `integration` build tag; baseline CI needs no camera.
       - go test ./...
@@ -62,14 +66,13 @@ steps:
     when:
       - event: push
       - event: pull_request
-    environment:
-      CACHE_ROOT: "$PWD/.ci-cache"
-      GOMODCACHE: "$PWD/.ci-cache/gomod"
-      GOCACHE: "$PWD/.ci-cache/gobuild"
-      GOPATH: "$PWD/.ci-cache/gopath"
     commands:
+      - export CACHE_ROOT="$PWD/.ci-cache"
+      - export GOMODCACHE="$CACHE_ROOT/gomod"
+      - export GOCACHE="$CACHE_ROOT/gobuild"
+      - export GOPATH="$CACHE_ROOT/gopath"
+      - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin" dist
       - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
-      - mkdir -p dist
       - go build -trimpath -o dist/v4lens ./cmd/v4lens
 
   release:
