@@ -11,6 +11,10 @@ clone:
 steps:
   fmt:
     image: golang:1.27-alpine
+    # The tag is rolling; without this the runner keeps a stale cached
+    # image (it served go1.27.0 while the tag had moved on, and the
+    # images pin GOTOOLCHAIN=local so go.mod's newer requirement fails).
+    pull: true
     commands:
       - |
         fmt_out=$(/usr/local/go/bin/gofmt -l ./cmd ./internal 2>/dev/null)
@@ -22,6 +26,7 @@ steps:
 
   lint:
     image: golang:1.27-alpine
+    pull: true
     commands:
       # Cache dirs are exported in the shell, not the environment block:
       # Woodpecker does not expand $PWD there, and Go rejects the literal
@@ -39,6 +44,7 @@ steps:
 
   vet:
     image: golang:1.27-alpine
+    pull: true
     commands:
       - export CACHE_ROOT="$PWD/.ci-cache"
       - export GOMODCACHE="$CACHE_ROOT/gomod"
@@ -50,6 +56,7 @@ steps:
 
   test:
     image: golang:1.27-alpine
+    pull: true
     commands:
       - export CACHE_ROOT="$PWD/.ci-cache"
       - export GOMODCACHE="$CACHE_ROOT/gomod"
@@ -62,6 +69,7 @@ steps:
 
   build:
     image: golang:1.27-alpine
+    pull: true
     # Tag events build through GoReleaser below; this is the smoke build.
     when:
       - event: push
