@@ -19,7 +19,10 @@ import (
 // background=true the main window stays hidden (tray-only start,
 // `--background`); activation reveals it.
 func Run(a *app.App, previews *preview.Manager, dirs platform.Dirs, background bool, log *slog.Logger) {
-	fa := fyneapp.New()
+	// Stable application identity: the Wayland app_id hint and D-Bus
+	// notification/tray identity instead of Fyne's per-launch
+	// "missing-id-<timestamp>".
+	fa := fyneapp.NewWithID("in.skobk.in.v4lens")
 
 	// V4Lens colors for both variants; the variant itself (dark/light)
 	// follows the system color scheme and live-updates from the desktop.
