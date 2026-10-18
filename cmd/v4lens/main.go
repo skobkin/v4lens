@@ -12,6 +12,7 @@ import (
 	"os"
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
+	"git.skobk.in/skobkin/v4lens/internal/buildinfo"
 	"git.skobk.in/skobkin/v4lens/internal/config"
 	"git.skobk.in/skobkin/v4lens/internal/device"
 	"git.skobk.in/skobkin/v4lens/internal/domain"
@@ -22,9 +23,6 @@ import (
 	"git.skobk.in/skobkin/v4lens/internal/ui"
 	"git.skobk.in/skobkin/v4lens/internal/v4l"
 )
-
-// version is overridden at build time via -ldflags.
-var version = "0.0.0-dev"
 
 func main() {
 	if err := run(); err != nil {
@@ -59,7 +57,8 @@ func run() error {
 	}
 
 	logger.Info("v4lens starting",
-		"version", version,
+		"version", buildinfo.Version,
+		"build_date", buildinfo.BuildDate,
 		"config", dirs.AppConfigFile(),
 	)
 

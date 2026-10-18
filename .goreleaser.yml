@@ -22,6 +22,8 @@ builds:
       - -trimpath
     ldflags:
       - -s -w -buildid=
+      - -X git.skobk.in/skobkin/v4lens/internal/buildinfo.Version={{ .Version }}
+      - -X git.skobk.in/skobkin/v4lens/internal/buildinfo.BuildDate={{ .Date }}
 
 archives:
   - formats:

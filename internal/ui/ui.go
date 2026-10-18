@@ -9,10 +9,15 @@ import (
 	"fyne.io/fyne/v2/theme"
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
+	"git.skobk.in/skobkin/v4lens/internal/buildinfo"
 	"git.skobk.in/skobkin/v4lens/internal/platform"
 	"git.skobk.in/skobkin/v4lens/internal/preview"
 	"git.skobk.in/skobkin/v4lens/internal/resources"
 )
+
+// appID is the single application identity: the Wayland app_id hint and
+// the D-Bus notification/tray identity.
+const appID = "in.skobk.in.v4lens"
 
 // Run builds the Fyne application, wires the main window to the app event
 // bus, attaches the preview manager (which also serves as the apply
@@ -22,10 +27,20 @@ import (
 // background=true the main window stays hidden (tray-only start,
 // `--background`); activation reveals it.
 func Run(a *app.App, previews *preview.Manager, dirs platform.Dirs, background bool, log *slog.Logger) {
+	// Nothing injects the metadata from outside the binary — the identity
+	// and version come from buildinfo, so they are set here, before app
+	// creation; without it Fyne reports placeholder metadata ("0.0.1").
+	fyneapp.SetMetadata(fyne.AppMetadata{
+		ID:         appID,
+		Name:       buildinfo.AppName,
+		Version:    buildinfo.Version,
+		Migrations: map[string]bool{"fyneDo": true},
+	})
+
 	// Stable application identity: the Wayland app_id hint and D-Bus
 	// notification/tray identity instead of Fyne's per-launch
 	// "missing-id-<timestamp>".
-	fa := fyneapp.NewWithID("in.skobk.in.v4lens")
+	fa := fyneapp.NewWithID(appID)
 
 	// V4Lens colors for both variants; the variant itself (dark/light)
 	// follows the system color scheme and live-updates from the desktop.

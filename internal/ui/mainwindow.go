@@ -13,6 +13,7 @@ import (
 	"fyne.io/fyne/v2/widget"
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
+	"git.skobk.in/skobkin/v4lens/internal/buildinfo"
 	"git.skobk.in/skobkin/v4lens/internal/domain"
 	"git.skobk.in/skobkin/v4lens/internal/platform"
 	"git.skobk.in/skobkin/v4lens/internal/preview"
@@ -88,7 +89,11 @@ type MainWindow struct {
 // NewMainWindow builds the window (not yet subscribed to events). dirs
 // feeds the tray's autostart integration.
 func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger) *MainWindow {
-	m := &MainWindow{fa: fa, app: a, dirs: dirs, log: log, win: fa.NewWindow("V4Lens")}
+	// The window title leads with the build version so release builds are
+	// identifiable at a glance ("V4Lens 0.1.0"; development builds read
+	// "V4Lens dev").
+	windowTitle := buildinfo.AppName + " " + buildinfo.Version
+	m := &MainWindow{fa: fa, app: a, dirs: dirs, log: log, win: fa.NewWindow(windowTitle)}
 
 	m.statusDot = newStatusDot()
 	m.statusText = widget.NewLabel("")
