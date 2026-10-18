@@ -137,3 +137,25 @@ finished MVP: Image sits directly next to Advanced so related tuning groups
 (white balance lives in Advanced) are one tab away, with PTZ adjacent to
 Image. The UI concept image's `Image, PTZ, Format, Advanced` ordering is
 deliberately not followed.
+
+## 2026-10-18 — D016 — App identity and desktop integration on Wayland
+
+Fyne 2.8's GLFW driver compiles both X11 and Wayland backends and selects
+one at runtime (`XDG_SESSION_TYPE`), so a plain `go build` runs as a native
+Wayland client on Wayland sessions. Wayland has no per-window icon
+property: the compositor resolves window/taskbar icons from the desktop
+entry whose ID matches the window's app_id. Consequences, adopted:
+
+- The Fyne app ID is fixed to `in.skobk.in.v4lens` (via
+  `app.NewWithID`) instead of Fyne's per-launch
+  `missing-id-<timestamp>`; it is both the Wayland app_id and the
+  D-Bus notification identity.
+- `packaging/` ships `in.skobk.in.v4lens.desktop` plus an icon-theme
+  entry (accent-colored camera mark) and a `install-user.sh` for
+  per-user installation. Without it, Wayland sessions show the generic
+  window icon; the X11 path needs no installation (`_NET_WM_ICON` is set
+  in-process).
+- The tray icon is published as a themed resource (recolored to the
+  active color-scheme variant's foreground, re-applied on scheme
+  changes), because the raw brand mark is black and disappears on dark
+  panels.

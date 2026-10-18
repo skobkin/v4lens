@@ -3,7 +3,10 @@ package ui
 import (
 	"log/slog"
 
+	"fyne.io/fyne/v2"
 	fyneapp "fyne.io/fyne/v2/app"
+	"fyne.io/fyne/v2/driver/desktop"
+	"fyne.io/fyne/v2/theme"
 
 	"git.skobk.in/skobkin/v4lens/internal/app"
 	"git.skobk.in/skobkin/v4lens/internal/platform"
@@ -45,6 +48,12 @@ func Run(a *app.App, previews *preview.Manager, dirs platform.Dirs, background b
 	m.background = background
 	m.Start()
 
+	// Tray mark in the active variant's foreground color so it stays
+	// visible on light and dark panels alike (the raw app mark is black).
+	// Re-applied when the desktop color scheme flips.
+	installTrayIcon(fa)
+	fa.Settings().AddListener(func(fyne.Settings) { installTrayIcon(fa) })
+
 	// Start discovery only after the bus subscription above: the initial
 	// scan publishes its events immediately.
 	a.Start()
@@ -54,4 +63,17 @@ func Run(a *app.App, previews *preview.Manager, dirs platform.Dirs, background b
 	// fa.Run returned (app quit); the close interceptor already stopped
 	// the app layer and the preview pipelines.
 	log.Info("ui exited")
+}
+
+// installTrayIcon publishes the app mark as a themed resource: Fyne
+// rasterizes it in the current variant's foreground color, and the
+// trailing listener re-runs this after every color-scheme change so the
+// icon re-tints. Must be called after the tray menu exists.
+func installTrayIcon(fa fyne.App) {
+	desk, ok := fa.(desktop.App)
+	if !ok {
+		return
+	}
+
+	desk.SetSystemTrayIcon(theme.NewThemedResource(resources.CameraIcon))
 }

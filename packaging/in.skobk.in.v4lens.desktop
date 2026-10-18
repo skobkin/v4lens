@@ -1,0 +1,10 @@
+[Desktop Entry]
+Type=Application
+Name=V4Lens
+GenericName=Camera Control
+Comment=Control V4L2 cameras and capture devices
+Exec=v4lens
+Icon=in.skobk.in.v4lens
+Terminal=false
+Categories=AudioVideo;Video;Utility;
+StartupNotify=false
