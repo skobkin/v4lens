@@ -37,7 +37,9 @@ steps:
       - export GOPATH="$CACHE_ROOT/gopath"
       - export GOLANGCI_LINT_CACHE="$CACHE_ROOT/golangci"
       - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin" "$GOLANGCI_LINT_CACHE"
-      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      # wayland-dev + libxkbcommon-dev: go-gl/glfw includes wl_platform.h
+      # unconditionally, which needs the Wayland and xkbcommon headers.
+      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev wayland-dev libxkbcommon-dev
       - export PATH="$GOPATH/bin:$PATH"
       # Pinned to the version used locally: v2.13.x bundles an x/tools
       # importer that cannot read Go 1.27 export data (v5 > max v4).
@@ -53,7 +55,9 @@ steps:
       - export GOCACHE="$CACHE_ROOT/gobuild"
       - export GOPATH="$CACHE_ROOT/gopath"
       - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin"
-      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      # wayland-dev + libxkbcommon-dev: go-gl/glfw includes wl_platform.h
+      # unconditionally, which needs the Wayland and xkbcommon headers.
+      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev wayland-dev libxkbcommon-dev
       - go vet ./...
 
   test:
@@ -65,7 +69,9 @@ steps:
       - export GOCACHE="$CACHE_ROOT/gobuild"
       - export GOPATH="$CACHE_ROOT/gopath"
       - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin"
-      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      # wayland-dev + libxkbcommon-dev: go-gl/glfw includes wl_platform.h
+      # unconditionally, which needs the Wayland and xkbcommon headers.
+      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev wayland-dev libxkbcommon-dev
       # Integration tests stay behind the `integration` build tag; baseline CI needs no camera.
       - go test ./...
 
@@ -82,7 +88,9 @@ steps:
       - export GOCACHE="$CACHE_ROOT/gobuild"
       - export GOPATH="$CACHE_ROOT/gopath"
       - mkdir -p "$GOMODCACHE" "$GOCACHE" "$GOPATH/bin" dist
-      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev
+      # wayland-dev + libxkbcommon-dev: go-gl/glfw includes wl_platform.h
+      # unconditionally, which needs the Wayland and xkbcommon headers.
+      - apk add --no-cache git build-base pkgconf linux-headers mesa-dev libx11-dev libxrandr-dev libxinerama-dev libxcursor-dev libxi-dev wayland-dev libxkbcommon-dev
       - go build -trimpath -o dist/v4lens ./cmd/v4lens
 
   release:
