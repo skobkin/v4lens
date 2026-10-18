@@ -168,9 +168,16 @@ func NewMainWindow(fa fyne.App, a *app.App, dirs platform.Dirs, log *slog.Logger
 	profGroup := container.NewVBox(captionLabel("Profile"),
 		container.NewHBox(m.profileSel, m.defaultMark))
 
+	// The right cell mirrors the left groups' two-row shape (caption row +
+	// control row): buttons keep their natural height and line up with the
+	// selects instead of stretching to the full bar height (Border
+	// stretches side cells, HBox stretches its children).
+	actions := container.NewVBox(captionLabel(""),
+		container.NewHBox(m.saveBtn, m.previewBtn, m.moreBtn))
+
 	bar := container.NewBorder(nil, nil,
 		container.NewHBox(camGroup, newVRule(), profGroup),
-		container.NewHBox(m.saveBtn, m.previewBtn, m.moreBtn),
+		actions,
 	)
 
 	m.win.SetContent(container.NewBorder(bar, m.footerBar, nil, nil, m.tabs))
