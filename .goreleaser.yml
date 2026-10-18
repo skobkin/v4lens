@@ -1,0 +1,51 @@
+version: 2
+
+project_name: v4lens
+
+gitea_urls:
+  api: "{{ .Env.FORGE_API_URL }}"
+  download: "{{ .Env.FORGE_DOWNLOAD_URL }}"
+
+builds:
+  - id: v4lens-linux
+    main: ./cmd/v4lens
+    binary: v4lens
+    env:
+      - CGO_ENABLED=1
+      - CC=gcc
+      - CXX=g++
+    goos:
+      - linux
+    goarch:
+      - amd64
+    flags:
+      - -trimpath
+    ldflags:
+      - -s -w -buildid=
+
+archives:
+  - formats:
+      - tar.gz
+    name_template: "{{ .ProjectName }}_{{ .Version }}_{{ .Os }}_{{ .Arch }}"
+    files:
+      # Desktop entry, icon-theme entry and installer: without them a
+      # native-Wayland session shows the generic window icon (D016).
+      - packaging/**
+
+checksum:
+  name_template: "checksums.txt"
+
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^build(\([^)]*\))?!?:'
+      - '^chore(\([^)]*\))?!?:'
+      - '^ci(\([^)]*\))?!?:'
+      - '^docs(\([^)]*\))?!?:'
+      - '^refactor(\([^)]*\))?!?:'
+      - '^style(\([^)]*\))?!?:'
+      - '^test(\([^)]*\))?!?:'
+      # Any (ci)-scoped type, e.g. fix(ci): — CI automation fixes are not
+      # user-facing.
+      - '^\w+\(ci\)!?:'

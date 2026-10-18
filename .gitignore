@@ -1,3 +1,6 @@
 # temporary agentic docs
 /assets/*
 !/assets/v4lens-ui-concept.png
+
+# GoReleaser output
+/dist/

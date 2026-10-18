@@ -159,3 +159,28 @@ entry whose ID matches the window's app_id. Consequences, adopted:
   active color-scheme variant's foreground, re-applied on scheme
   changes), because the raw brand mark is black and disappears on dark
   panels.
+
+## 2026-10-18 — D017 — Release publishing: GoReleaser to Forgejo Releases on tags
+
+Releases are published by Woodpecker on tag pushes only (unprefixed tags,
+e.g. `0.1.0`), via GoReleaser running in `goreleaser/goreleaser-cross`
+(the image's major tracks the bundled Go toolchain, currently 1.27) into
+the same Forgejo instance, using the Gitea-compatible API and a Woodpecker
+`GITEA_TOKEN` repository secret. The pattern matches the owner's other
+Go+Fyne projects (aimon, qBtRemoteGo). Adopted specifics:
+
+- Linux-only archives (`tar.gz`, amd64) — the MVP is Linux-only; unlike
+  the references there is no Windows/mingw target.
+- Release archives contain the `packaging/` desktop-entry set (desktop
+  file, icon-theme entry, `install-user.sh`) in addition to the binary:
+  without it native-Wayland sessions show the generic window icon (D016).
+- Release notes are GoReleaser's generated changelog excluding
+  non-user-facing commit types: build, chore, ci, docs, refactor, style,
+  test — plus any `(ci)`-scoped type. CI automation fixes and repository
+  chores must not appear in release descriptions.
+- The pipeline clones with full history (needed for tag-to-tag changelog
+  generation); the plain `build` step runs on push/PR only, tag events
+  build and publish exclusively through GoReleaser.
+
+Prerequisite on the CI side: the `GITEA_TOKEN` Woodpecker secret must
+exist for this repository (Forgejo token, as in aimon/qBtRemoteGo).
