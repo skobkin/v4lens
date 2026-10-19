@@ -6,22 +6,20 @@ V4Lens is a small Linux desktop utility for V4L2 cameras and capture devices. It
 
 ## Authoritative documents
 
-Read these before implementation. Precedence is:
+Read these before making changes. Precedence is:
 
-1. `docs/DECISION_LOG.md` — later dated decisions override earlier documents where they explicitly conflict.
+1. `docs/DECISION_LOG.md` — later dated decisions override earlier documents where they explicitly conflict. Record every new product-level decision here.
 2. `docs/UI_UX_SPEC.md` — user-facing behavior and UI contract.
 3. `docs/ARCHITECTURE.md` — architecture and runtime contract.
 4. `docs/PRODUCT_SPEC.md` — product intent.
-5. `docs/MVP_SCOPE.md` — scope boundary.
-6. `docs/ACCEPTANCE_CRITERIA.md` — completion contract.
-7. `docs/AGENT_TASK.md` — execution instructions.
-8. `docs/REFERENCES.md` — references only; references never override V4Lens specs.
+5. `docs/MVP_SCOPE.md` — scope boundary between MVP and post-MVP goals.
+6. `docs/REFERENCES.md` — references only; references never override V4Lens specs.
 
 The approved mockup at `assets/v4lens-ui-concept.png` is a visual reference. Text specs win on conflicts.
 
 ## Non-negotiable constraints
 
-- Linux-only MVP.
+- Linux-only.
 - Go + Fyne 2.8.x.
 - V4L2-first. Do not create a cross-platform camera abstraction merely for hypothetical future portability.
 - Keep V4L2/ioctl/library details behind an internal backend boundary; UI and profile code consume normalized domain types.
@@ -44,7 +42,7 @@ The approved mockup at `assets/v4lens-ui-concept.png` is a visual reference. Tex
 ## UI rules
 
 - The persistent top context area contains device selection, device state, profile selection, default marker, Save, Preview and overflow actions.
-- Tabs for MVP: `Image`, `PTZ`, `Format`, `Advanced`.
+- Tabs: `Image`, `PTZ`, `Format`, `Advanced`.
 - `Advanced` is a separate tab initially. It may be reconsidered later without changing the backend/domain architecture.
 - Sliders for integer controls have a linked numeric field for exact input.
 - Live slider writes are coalesced to at most roughly one write per 200 ms while dragging; `OnChangeEnded` must immediately commit the final value.
@@ -56,9 +54,9 @@ The approved mockup at `assets/v4lens-ui-concept.png` is a visual reference. Tex
 
 ## Code quality
 
-Start with the strict golangci-lint v2 configuration referenced in `docs/REFERENCES.md` (the aimon/meshgo style, including `nlreturn`) and adapt exclusions only when V4Lens has a concrete reason.
+Keep the strict golangci-lint v2 configuration referenced in `docs/REFERENCES.md` (the aimon/meshgo style, including `nlreturn`); adapt exclusions only when V4Lens has a concrete reason.
 
-Before declaring implementation complete, run at least:
+Before declaring a change complete, run at least:
 
 ```sh
 gofmt -w .
