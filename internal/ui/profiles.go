@@ -231,7 +231,24 @@ func showApplyResult(res profile.ApplyResult, win fyne.Window) {
 		content.Add(widget.NewLabel(fmt.Sprintf("%d control(s) applied.", applied)))
 	}
 
-	dialog.ShowCustom("Profile apply result", "Close", container.NewVScroll(content), win)
+	dialog.ShowCustom("Profile apply result", "Close", applyResultScroll(content, applyResultMaxHeight), win)
+}
+
+// applyResultMaxHeight bounds the result dialog viewport in theme units;
+// longer reports scroll instead of covering the parent window.
+const applyResultMaxHeight = 320
+
+// applyResultScroll wraps the dialog content in a scroll sized to fit the
+// whole report up to a cap. dialog.ShowCustom takes the dialog size from
+// the content's MinSize, and a bare VScroll reports only a ~32 px viewport
+// regardless of content height, which clipped the report behind a scrollbar.
+func applyResultScroll(content fyne.CanvasObject, maxHeight float32) *container.Scroll {
+	sc := container.NewVScroll(content)
+
+	contentMin := content.MinSize()
+	sc.SetMinSize(fyne.NewSize(contentMin.Width, fyne.Min(contentMin.Height, maxHeight)))
+
+	return sc
 }
 
 func applySummary(res profile.ApplyResult) string {
